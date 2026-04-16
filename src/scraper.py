@@ -68,14 +68,24 @@ class RealEstateScraper:
             return []
 
         items = root.findall(".//item")
+        if self.debug and items:
+            first = items[0]
+            tags = [child.tag for child in first]
+            print(f"[DEBUG] XML 필드 목록: {tags}")
+
         results = []
 
         for item in items:
             row = {}
+            # 매핑된 필드 추출
             for xml_tag, col_name in field_map.items():
                 elem = item.find(xml_tag)
                 value = elem.text.strip() if elem is not None and elem.text else ""
                 row[col_name] = value
+            # 매핑에 없는 필드도 원본 태그명으로 포함
+            for child in item:
+                if child.tag not in field_map and child.text:
+                    row[child.tag] = child.text.strip()
             results.append(row)
 
         return results
