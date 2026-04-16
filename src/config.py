@@ -3,7 +3,9 @@
 """
 
 # 국토교통부 실거래가 API 엔드포인트 (apis.data.go.kr)
-_BASE = "https://apis.data.go.kr/1613000"
+# NOTE: http를 사용해야 함 (https 사용 시 SSL 오류 발생 가능)
+# 이전(폐지) URL: http://openapi.molit.go.kr/OpenAPI_ToolInstallPackage/service/rest/RTMSOBJSvc/...
+_BASE = "http://apis.data.go.kr/1613000"
 API_ENDPOINTS = {
     "아파트매매": f"{_BASE}/RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev",
     "아파트전월세": f"{_BASE}/RTMSDataSvcAptRent/getRTMSDataSvcAptRent",
