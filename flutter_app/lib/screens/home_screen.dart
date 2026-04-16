@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'trade_screen.dart';
-import 'auction_screen.dart';
+import 'map_screen.dart';
+import 'list_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -13,8 +13,8 @@ class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
 
   final _screens = const [
-    TradeScreen(),
-    AuctionScreen(),
+    MapScreen(),
+    ListScreen(),
   ];
 
   @override
@@ -28,14 +28,14 @@ class _HomeScreenState extends State<HomeScreen> {
         },
         destinations: const [
           NavigationDestination(
-            icon: Icon(Icons.bar_chart_outlined),
-            selectedIcon: Icon(Icons.bar_chart),
-            label: '실거래가',
+            icon: Icon(Icons.map_outlined),
+            selectedIcon: Icon(Icons.map),
+            label: '지도',
           ),
           NavigationDestination(
-            icon: Icon(Icons.gavel_outlined),
-            selectedIcon: Icon(Icons.gavel),
-            label: '경매',
+            icon: Icon(Icons.list_alt_outlined),
+            selectedIcon: Icon(Icons.list_alt),
+            label: '목록',
           ),
         ],
       ),

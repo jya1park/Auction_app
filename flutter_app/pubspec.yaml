@@ -1,5 +1,5 @@
 name: auction_app
-description: 부동산 실거래가 & 경매 조회 앱
+description: 부동산 실거래가 & 경매 지도 앱
 
 publish_to: 'none'
 version: 1.0.0+1
@@ -12,6 +12,7 @@ dependencies:
     sdk: flutter
   cloud_firestore: ^5.6.0
   firebase_core: ^3.12.0
+  google_maps_flutter: ^2.10.0
   intl: ^0.19.0
   cupertino_icons: ^1.0.8
 
