@@ -21,12 +21,14 @@ from src.config import (
 class RealEstateScraper:
     """부동산 실거래가 크롤러"""
 
-    def __init__(self, service_key: str):
+    def __init__(self, service_key: str, debug: bool = False):
         """
         Args:
             service_key: data.go.kr에서 발급받은 인증키 (디코딩된 키)
+            debug: True이면 API 응답 원본 출력
         """
         self.service_key = service_key
+        self.debug = debug
 
     def _call_api(self, url: str, lawd_cd: str, deal_ymd: str) -> str | None:
         """API 호출 후 XML 텍스트 반환"""
@@ -41,6 +43,10 @@ class RealEstateScraper:
         try:
             resp = requests.get(url, params=params, timeout=30)
             resp.raise_for_status()
+            if self.debug:
+                print(f"[DEBUG] URL: {resp.url}")
+                print(f"[DEBUG] Status: {resp.status_code}")
+                print(f"[DEBUG] 응답 앞 1000자:\n{resp.text[:1000]}")
             return resp.text
         except requests.RequestException as e:
             print(f"[오류] API 호출 실패: {e}")

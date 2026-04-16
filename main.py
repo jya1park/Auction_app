@@ -99,7 +99,7 @@ def cmd_list(args):
 def cmd_crawl(args):
     """크롤링 실행 명령"""
     service_key = get_service_key()
-    scraper = RealEstateScraper(service_key)
+    scraper = RealEstateScraper(service_key, debug=args.debug)
 
     trade_type = args.type
     lawd_cd = args.region_code
@@ -223,6 +223,9 @@ def main():
     )
     sp_crawl.add_argument(
         "--save", action="store_true", help="결과를 CSV 파일로 저장"
+    )
+    sp_crawl.add_argument(
+        "--debug", action="store_true", help="API 응답 원본 출력 (디버그용)"
     )
     sp_crawl.set_defaults(func=cmd_crawl)
 
