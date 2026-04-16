@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#2563eb">
+    <title>부동산 실거래가 & 경매</title>
+    <link rel="manifest" href="/static/manifest.json">
+    <link rel="icon" href="/static/icons/icon-192.png">
+    <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <!-- 헤더 -->
+    <header class="header">
+        <h1>🏠 부동산 조회</h1>
+    </header>
+
+    <!-- 탭 네비게이션 -->
+    <nav class="tab-nav">
+        <button class="tab-btn active" data-tab="trade">실거래가</button>
+        <button class="tab-btn" data-tab="auction">경매</button>
+    </nav>
+
+    <!-- ===== 실거래가 탭 ===== -->
+    <section id="tab-trade" class="tab-content active">
+        <!-- 검색 폼 -->
+        <div class="search-box">
+            <div class="form-group">
+                <label>지역 검색</label>
+                <div class="input-row">
+                    <input type="text" id="region-keyword" placeholder="예: 강남, 분당, 해운대">
+                    <button id="btn-search-region" class="btn btn-primary">검색</button>
+                </div>
+            </div>
+            <div id="region-results" class="region-results" style="display:none;"></div>
+
+            <div class="form-row">
+                <div class="form-group flex-1">
+                    <label>선택된 지역</label>
+                    <input type="text" id="selected-region" readonly placeholder="지역을 검색하세요">
+                    <input type="hidden" id="region-code">
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group flex-1">
+                    <label>조회 년월</label>
+                    <input type="month" id="year-month" value="">
+                </div>
+                <div class="form-group flex-1">
+                    <label>거래유형</label>
+                    <select id="trade-type">
+                        <option value="아파트매매">아파트 매매</option>
+                        <option value="아파트전월세">아파트 전월세</option>
+                        <option value="오피스텔매매">오피스텔 매매</option>
+                        <option value="오피스텔전월세">오피스텔 전월세</option>
+                        <option value="연립다세대매매">연립다세대 매매</option>
+                        <option value="연립다세대전월세">연립다세대 전월세</option>
+                        <option value="단독다가구매매">단독다가구 매매</option>
+                        <option value="단독다가구전월세">단독다가구 전월세</option>
+                    </select>
+                </div>
+            </div>
+
+            <button id="btn-search-trade" class="btn btn-primary btn-full">조회하기</button>
+        </div>
+
+        <!-- 결과 -->
+        <div id="trade-loading" class="loading" style="display:none;">
+            <div class="spinner"></div>
+            <p>데이터 조회 중...</p>
+        </div>
+        <div id="trade-count" class="result-count" style="display:none;"></div>
+        <div id="trade-results" class="card-list"></div>
+    </section>
+
+    <!-- ===== 경매 탭 ===== -->
+    <section id="tab-auction" class="tab-content">
+        <div class="search-box">
+            <div class="form-row">
+                <div class="form-group flex-1">
+                    <label>법원</label>
+                    <select id="auction-court">
+                        <option value="">전체</option>
+                    </select>
+                </div>
+                <div class="form-group flex-1">
+                    <label>용도</label>
+                    <select id="auction-usage">
+                        <option value="">전체</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>소재지 검색</label>
+                <input type="text" id="auction-keyword" placeholder="동/리 이름 입력">
+            </div>
+            <button id="btn-search-auction" class="btn btn-primary btn-full">경매 검색</button>
+        </div>
+
+        <div id="auction-loading" class="loading" style="display:none;">
+            <div class="spinner"></div>
+            <p>경매 정보 조회 중...</p>
+        </div>
+        <div id="auction-count" class="result-count" style="display:none;"></div>
+        <div id="auction-results" class="card-list"></div>
+    </section>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

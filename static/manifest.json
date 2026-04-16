@@ -1,0 +1,22 @@
+{
+    "name": "부동산 실거래가 & 경매",
+    "short_name": "부동산조회",
+    "description": "부동산 실거래가 및 법원 경매 정보를 조회하는 모바일 웹앱",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#f1f5f9",
+    "theme_color": "#2563eb",
+    "orientation": "portrait",
+    "icons": [
+        {
+            "src": "/static/icons/icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "/static/icons/icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
+    ]
+}
