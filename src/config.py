@@ -2,16 +2,17 @@
 부동산 실거래가 크롤러 설정
 """
 
-# 국토교통부 실거래가 API 엔드포인트
+# 국토교통부 실거래가 API 엔드포인트 (apis.data.go.kr)
+_BASE = "https://apis.data.go.kr/1613000"
 API_ENDPOINTS = {
-    "아파트매매": "http://openapi.molit.go.kr/OpenAPI_ToolInstallPackage/service/rest/RTMSOBJSvc/getRTMSDataSvcAptTradeDev",
-    "아파트전월세": "http://openapi.molit.go.kr/OpenAPI_ToolInstallPackage/service/rest/RTMSOBJSvc/getRTMSDataSvcAptRent",
-    "오피스텔매매": "http://openapi.molit.go.kr/OpenAPI_ToolInstallPackage/service/rest/RTMSOBJSvc/getRTMSDataSvcOffiTrade",
-    "오피스텔전월세": "http://openapi.molit.go.kr/OpenAPI_ToolInstallPackage/service/rest/RTMSOBJSvc/getRTMSDataSvcOffiRent",
-    "연립다세대매매": "http://openapi.molit.go.kr/OpenAPI_ToolInstallPackage/service/rest/RTMSOBJSvc/getRTMSDataSvcRHTrade",
-    "연립다세대전월세": "http://openapi.molit.go.kr/OpenAPI_ToolInstallPackage/service/rest/RTMSOBJSvc/getRTMSDataSvcRHRent",
-    "단독다가구매매": "http://openapi.molit.go.kr/OpenAPI_ToolInstallPackage/service/rest/RTMSOBJSvc/getRTMSDataSvcSHTrade",
-    "단독다가구전월세": "http://openapi.molit.go.kr/OpenAPI_ToolInstallPackage/service/rest/RTMSOBJSvc/getRTMSDataSvcSHRent",
+    "아파트매매": f"{_BASE}/RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev",
+    "아파트전월세": f"{_BASE}/RTMSDataSvcAptRent/getRTMSDataSvcAptRent",
+    "오피스텔매매": f"{_BASE}/RTMSDataSvcOffiTrade/getRTMSDataSvcOffiTrade",
+    "오피스텔전월세": f"{_BASE}/RTMSDataSvcOffiRent/getRTMSDataSvcOffiRent",
+    "연립다세대매매": f"{_BASE}/RTMSDataSvcRHTrade/getRTMSDataSvcRHTrade",
+    "연립다세대전월세": f"{_BASE}/RTMSDataSvcRHRent/getRTMSDataSvcRHRent",
+    "단독다가구매매": f"{_BASE}/RTMSDataSvcSHTrade/getRTMSDataSvcSHTrade",
+    "단독다가구전월세": f"{_BASE}/RTMSDataSvcSHRent/getRTMSDataSvcSHRent",
 }
 
 # 매매 거래 응답 필드 매핑
