@@ -54,9 +54,9 @@ class RealEstateScraper:
             print(f"[오류] XML 파싱 실패: {e}")
             return []
 
-        # 에러 응답 확인
+        # 에러 응답 확인 (정상 코드: "00", "000")
         result_code = root.findtext(".//resultCode")
-        if result_code and result_code != "00":
+        if result_code and result_code not in ("00", "000"):
             result_msg = root.findtext(".//resultMsg", "알 수 없는 오류")
             print(f"[오류] API 에러 (코드: {result_code}): {result_msg}")
             return []
