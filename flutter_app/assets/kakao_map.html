@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<style>
+  * { margin: 0; padding: 0; }
+  html, body, #map { width: 100%; height: 100%; }
+  .info-window {
+    padding: 10px 14px;
+    font-family: -apple-system, sans-serif;
+    font-size: 13px;
+    line-height: 1.5;
+    max-width: 260px;
+  }
+  .info-title {
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .info-auction .info-title { color: #ea580c; }
+  .info-trade .info-title { color: #2563eb; }
+  .info-price {
+    font-size: 16px;
+    font-weight: 800;
+    color: #dc2626;
+    margin: 4px 0;
+  }
+  .info-row { color: #64748b; font-size: 12px; }
+  .info-badge {
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .badge-auction { background: #fff7ed; color: #9a3412; }
+  .badge-trade { background: #eff6ff; color: #1e40af; }
+</style>
+</head>
+<body>
+<div id="map"></div>
+
+<script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=KAKAO_JS_KEY_PLACEHOLDER&libraries=services"></script>
+<script>
+var map;
+var markers = [];
+var infoWindows = [];
+var currentInfoWindow = null;
+var showAuction = true;
+var showTrade = true;
+var allItems = [];
+
+// 지도 초기화
+function initMap() {
+  var container = document.getElementById('map');
+  var options = {
+    center: new kakao.maps.LatLng(37.5665, 126.978),
+    level: 8
+  };
+  map = new kakao.maps.Map(container, options);
+}
+
+// Flutter에서 호출: 마커 데이터 로드
+function loadMarkers(jsonStr) {
+  allItems = JSON.parse(jsonStr);
+  renderMarkers();
+
+  // 데이터가 있으면 첫 번째 유효 좌표로 이동
+  var valid = allItems.filter(function(i) { return i.lat && i.lat !== 0; });
+  if (valid.length > 0) {
+    var first = valid[0];
+    map.setCenter(new kakao.maps.LatLng(first.lat, first.lng));
+    map.setLevel(5);
+  }
+}
+
+// 필터 토글 (Flutter에서 호출)
+function setFilter(type, visible) {
+  if (type === 'auction') showAuction = visible;
+  if (type === 'trade') showTrade = visible;
+  renderMarkers();
+}
+
+// 마커 렌더링
+function renderMarkers() {
+  // 기존 마커 제거
+  markers.forEach(function(m) { m.setMap(null); });
+  markers = [];
+  if (currentInfoWindow) { currentInfoWindow.close(); currentInfoWindow = null; }
+
+  allItems.forEach(function(item) {
+    if (!item.lat || item.lat === 0) return;
+    var type = item._type || '';
+    if (type === 'auction' && !showAuction) return;
+    if (type === 'trade' && !showTrade) return;
+
+    var isAuction = (type === 'auction');
+    var position = new kakao.maps.LatLng(item.lat, item.lng);
+
+    // 마커 이미지
+    var imageSrc = isAuction
+      ? 'https://t1.daumcdn.net/localimg/localimages/07/mapapidoc/markerStar.png'
+      : 'https://t1.daumcdn.net/localimg/localimages/07/2018/pc/img/marker_spot.png';
+    var imageSize = new kakao.maps.Size(24, 35);
+    var markerImage = new kakao.maps.MarkerImage(imageSrc, imageSize);
+
+    var marker = new kakao.maps.Marker({
+      position: position,
+      image: markerImage,
+      map: map
+    });
+
+    // 인포윈도우 내용
+    var content = buildInfoContent(item, isAuction);
+    var infoWindow = new kakao.maps.InfoWindow({ content: content });
+
+    kakao.maps.event.addListener(marker, 'click', function() {
+      if (currentInfoWindow) currentInfoWindow.close();
+      infoWindow.open(map, marker);
+      currentInfoWindow = infoWindow;
+
+      // Flutter에 마커 클릭 알림
+      if (window.FlutterChannel) {
+        FlutterChannel.postMessage(JSON.stringify(item));
+      }
+    });
+
+    markers.push(marker);
+  });
+}
+
+function buildInfoContent(item, isAuction) {
+  if (isAuction) {
+    return '<div class="info-window info-auction">'
+      + '<span class="info-badge badge-auction">경매</span>'
+      + '<div class="info-title">' + (item['사건번호'] || '-') + '</div>'
+      + '<div class="info-row">' + (item['소재지'] || '').substring(0, 30) + '</div>'
+      + '<div class="info-price">최저가 ' + (item['최저매각가'] || '-') + '</div>'
+      + '<div class="info-row">감정가 ' + (item['감정가'] || '-') + '</div>'
+      + '<div class="info-row">매각기일 ' + (item['매각기일'] || '-') + '</div>'
+      + '</div>';
+  } else {
+    var aptName = item['아파트명'] || item['aptNm'] || '-';
+    var price = item['거래금액(만원)'] || item['dealAmount'] || '-';
+    var dong = item['법정동'] || item['umdNm'] || '';
+    var area = item['전용면적(㎡)'] || item['excluUseAr'] || '';
+    var floor = item['층'] || item['floor'] || '';
+    return '<div class="info-window info-trade">'
+      + '<span class="info-badge badge-trade">실거래가</span>'
+      + '<div class="info-title">' + aptName + '</div>'
+      + '<div class="info-price">' + formatPrice(price) + '</div>'
+      + '<div class="info-row">' + dong + ' | ' + area + '㎡ | ' + floor + '층</div>'
+      + '</div>';
+  }
+}
+
+function formatPrice(raw) {
+  var n = parseInt(String(raw).replace(/,/g, '').trim(), 10);
+  if (isNaN(n)) return raw;
+  if (n >= 10000) {
+    var 억 = Math.floor(n / 10000);
+    var 만 = n % 10000;
+    return 만 > 0 ? 억 + '억 ' + 만.toLocaleString() + '만원' : 억 + '억원';
+  }
+  return n.toLocaleString() + '만원';
+}
+
+// 초기화
+initMap();
+</script>
+</body>
+</html>

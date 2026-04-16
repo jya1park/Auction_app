@@ -1,8 +1,14 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:flutter/services.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 import '../services/firestore_service.dart';
 import '../widgets/detail_sheet.dart';
 
+/// 카카오맵 WebView 기반 지도 화면
+/// - 경매: 별 마커 (주황)
+/// - 실거래가: 기본 마커 (파랑)
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
 
@@ -12,23 +18,55 @@ class MapScreen extends StatefulWidget {
 
 class _MapScreenState extends State<MapScreen> {
   final FirestoreService _service = FirestoreService();
-  GoogleMapController? _mapController;
+  late final WebViewController _webController;
 
-  Set<Marker> _markers = {};
   List<Map<String, dynamic>> _items = [];
   bool _isLoading = true;
-
-  // 필터
+  bool _mapReady = false;
   bool _showAuction = true;
   bool _showTrade = true;
 
-  // 기본 위치: 서울 중심
-  static const _defaultCenter = LatLng(37.5665, 126.9780);
+  // .env에서 읽을 수도 있지만, 빌드 시 교체됨
+  static const _kakaoJsKey = String.fromEnvironment(
+    'KAKAO_JS_KEY',
+    defaultValue: '614ddc420a052c47f1b0a7eb2169d862',
+  );
 
   @override
   void initState() {
     super.initState();
+    _initWebView();
     _loadData();
+  }
+
+  void _initWebView() {
+    _webController = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..addJavaScriptChannel(
+        'FlutterChannel',
+        onMessageReceived: (message) {
+          // 마커 클릭 시 상세정보 표시
+          try {
+            final data = jsonDecode(message.message) as Map<String, dynamic>;
+            _showDetail(data);
+          } catch (_) {}
+        },
+      )
+      ..setNavigationDelegate(NavigationDelegate(
+        onPageFinished: (_) {
+          _mapReady = true;
+          _sendDataToMap();
+        },
+      ));
+
+    // HTML 로드 (JS 키 삽입)
+    _loadMapHtml();
+  }
+
+  Future<void> _loadMapHtml() async {
+    final html = await rootBundle.loadString('assets/kakao_map.html');
+    final injected = html.replaceAll('KAKAO_JS_KEY_PLACEHOLDER', _kakaoJsKey);
+    _webController.loadHtmlString(injected);
   }
 
   Future<void> _loadData() async {
@@ -37,26 +75,9 @@ class _MapScreenState extends State<MapScreen> {
       final items = await _service.getMapItems(limit: 500);
       setState(() {
         _items = items;
-        _buildMarkers();
         _isLoading = false;
       });
-
-      // 데이터가 있으면 첫 번째 항목 위치로 이동
-      if (items.isNotEmpty && _mapController != null) {
-        final first = items.firstWhere(
-          (i) => i['lat'] != null && i['lat'] != 0.0,
-          orElse: () => items.first,
-        );
-        _mapController!.animateCamera(
-          CameraUpdate.newLatLngZoom(
-            LatLng(
-              (first['lat'] as num).toDouble(),
-              (first['lng'] as num).toDouble(),
-            ),
-            13,
-          ),
-        );
-      }
+      _sendDataToMap();
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
@@ -67,55 +88,19 @@ class _MapScreenState extends State<MapScreen> {
     }
   }
 
-  void _buildMarkers() {
-    final markers = <Marker>{};
+  void _sendDataToMap() {
+    if (!_mapReady || _items.isEmpty) return;
+    final json = jsonEncode(_items);
+    // 작은따옴표 이스케이프
+    final escaped = json.replaceAll("'", "\\'");
+    _webController.runJavaScript("loadMarkers('$escaped')");
+  }
 
-    for (final item in _items) {
-      final type = item['_type'] ?? '';
-      if (type == 'auction' && !_showAuction) continue;
-      if (type == 'trade' && !_showTrade) continue;
-
-      final lat = item['lat'];
-      final lng = item['lng'];
-      if (lat == null || lng == null || lat == 0.0 || lng == 0.0) continue;
-
-      final isAuction = type == 'auction';
-      final id = item['id'] ?? '${lat}_$lng';
-
-      String title;
-      String snippet;
-
-      if (isAuction) {
-        title = '🔨 ${item['사건번호'] ?? '경매'}';
-        snippet = '최저가: ${item['최저매각가'] ?? '-'}';
-      } else {
-        final aptName = item['아파트명'] ?? item['aptNm'] ?? '-';
-        final price = item['거래금액(만원)'] ?? item['dealAmount'] ?? '-';
-        title = '📊 $aptName';
-        snippet = '${_formatPrice(price.toString())}';
-      }
-
-      markers.add(Marker(
-        markerId: MarkerId(id),
-        position: LatLng(
-          (lat as num).toDouble(),
-          (lng as num).toDouble(),
-        ),
-        icon: BitmapDescriptor.defaultMarkerWithHue(
-          isAuction
-              ? BitmapDescriptor.hueOrange
-              : BitmapDescriptor.hueAzure,
-        ),
-        infoWindow: InfoWindow(
-          title: title,
-          snippet: snippet,
-          onTap: () => _showDetail(item),
-        ),
-        onTap: () => _showDetail(item),
-      ));
-    }
-
-    setState(() => _markers = markers);
+  void _toggleFilter(String type, bool value) {
+    if (type == 'auction') _showAuction = value;
+    if (type == 'trade') _showTrade = value;
+    setState(() {});
+    _webController.runJavaScript("setFilter('$type', $value)");
   }
 
   void _showDetail(Map<String, dynamic> item) {
@@ -131,7 +116,6 @@ class _MapScreenState extends State<MapScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
     final auctionCount = _items.where((i) => i['_type'] == 'auction').length;
     final tradeCount = _items.where((i) => i['_type'] == 'trade').length;
 
@@ -147,66 +131,47 @@ class _MapScreenState extends State<MapScreen> {
       ),
       body: Stack(
         children: [
-          // 지도
-          GoogleMap(
-            initialCameraPosition: const CameraPosition(
-              target: _defaultCenter,
-              zoom: 12,
-            ),
-            markers: _markers,
-            myLocationEnabled: true,
-            myLocationButtonEnabled: false,
-            zoomControlsEnabled: false,
-            mapToolbarEnabled: false,
-            onMapCreated: (controller) {
-              _mapController = controller;
-            },
-          ),
+          // 카카오맵 WebView
+          WebViewWidget(controller: _webController),
 
-          // 로딩 인디케이터
+          // 로딩
           if (_isLoading)
             const Center(child: CircularProgressIndicator()),
 
-          // 필터 + 범례 (상단)
+          // 필터 칩 (상단)
           Positioned(
             top: 8,
             left: 12,
             right: 12,
             child: Card(
               elevation: 4,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 child: Row(
                   children: [
-                    // 경매 필터
                     FilterChip(
-                      avatar: const CircleAvatar(
-                        backgroundColor: Colors.orange,
+                      avatar: CircleAvatar(
+                        backgroundColor: Colors.orange.shade600,
                         radius: 6,
                       ),
-                      label: Text('경매 $auctionCount건',
+                      label: Text('경매 $auctionCount',
                           style: const TextStyle(fontSize: 13)),
                       selected: _showAuction,
-                      onSelected: (v) {
-                        setState(() => _showAuction = v);
-                        _buildMarkers();
-                      },
+                      onSelected: (v) => _toggleFilter('auction', v),
                     ),
                     const SizedBox(width: 8),
-                    // 실거래가 필터
                     FilterChip(
-                      avatar: const CircleAvatar(
-                        backgroundColor: Colors.blue,
+                      avatar: CircleAvatar(
+                        backgroundColor: Colors.blue.shade600,
                         radius: 6,
                       ),
-                      label: Text('실거래가 $tradeCount건',
+                      label: Text('실거래가 $tradeCount',
                           style: const TextStyle(fontSize: 13)),
                       selected: _showTrade,
-                      onSelected: (v) {
-                        setState(() => _showTrade = v);
-                        _buildMarkers();
-                      },
+                      onSelected: (v) => _toggleFilter('trade', v),
                     ),
                   ],
                 ),
@@ -216,17 +181,5 @@ class _MapScreenState extends State<MapScreen> {
         ],
       ),
     );
-  }
-
-  String _formatPrice(String raw) {
-    final cleaned = raw.replaceAll(',', '').trim();
-    final n = int.tryParse(cleaned);
-    if (n == null) return raw;
-    if (n >= 10000) {
-      final 억 = n ~/ 10000;
-      final 만 = n % 10000;
-      return 만 > 0 ? '$억억 $만만원' : '$억억원';
-    }
-    return '$n만원';
   }
 }
