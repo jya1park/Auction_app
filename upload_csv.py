@@ -30,33 +30,73 @@ FIREBASE_KEY_PATH = os.path.join(os.path.dirname(__file__), "firebase-key.json")
 
 
 def _normalize_apt_name(name):
-    """아파트명 정규화: 공백/특수문자 제거, 흔한 접미사 통일"""
+    """아파트명 정규화: 공백/특수문자/접미사/차수/단지 제거"""
     import re as _re
-    s = _re.sub(r'[\s\-_·()（）]', '', name)
-    s = s.replace("아파트", "").replace("APT", "")
+    s = _re.sub(r'[\s\-_·()（）,.]', '', name)
+    # 흔한 접미사
+    s = s.replace("아파트", "").replace("APT", "").replace("apt", "")
+    # N차, N단지 제거 (예: "성복자이1차" → "성복자이")
+    s = _re.sub(r'\d+차', '', s)
+    s = _re.sub(r'\d+단지', '', s)
+    # 연속 숫자도 꼬리에서 정리 (예: "파크앤시티타워2" → "파크앤시티타워")
+    s = _re.sub(r'\d+$', '', s)
     return s
 
 
 def _match_apt_name(trade_apt, target_set):
     """
-    실거래가 아파트명이 CSV 아파트명 목록과 매칭되는지 확인
+    실거래가 아파트명 ↔ CSV 아파트명 매칭
     - 정확 일치
-    - 정규화 후 일치
-    - 부분 포함 (한쪽이 다른쪽에 포함)
+    - 정규화 후 일치 (공백/접미사/차수 제거)
+    - 부분 포함 (3자 이상)
+    - 유사도 70% 이상 (difflib)
     """
     if not trade_apt:
         return False
+    from difflib import SequenceMatcher
+
     trade_norm = _normalize_apt_name(trade_apt)
     for target in target_set:
         if trade_apt == target:
             return True
         target_norm = _normalize_apt_name(target)
+        if not trade_norm or not target_norm:
+            continue
         if trade_norm == target_norm:
             return True
+        # 한쪽이 다른쪽에 포함 (3자 이상)
         if len(trade_norm) >= 3 and len(target_norm) >= 3:
             if trade_norm in target_norm or target_norm in trade_norm:
                 return True
+        # 유사도 매칭 (두 이름 모두 4자 이상, 70% 이상 일치)
+        if len(trade_norm) >= 4 and len(target_norm) >= 4:
+            ratio = SequenceMatcher(None, trade_norm, target_norm).ratio()
+            if ratio >= 0.7:
+                return True
     return False
+
+
+def _find_matching_target(trade_apt, target_set):
+    """매칭된 target 이름 반환 (디버그용)"""
+    if not trade_apt:
+        return None
+    from difflib import SequenceMatcher
+    trade_norm = _normalize_apt_name(trade_apt)
+    best = (0.0, None)
+    for target in target_set:
+        target_norm = _normalize_apt_name(target)
+        if not target_norm:
+            continue
+        if trade_norm == target_norm:
+            return target
+        if len(trade_norm) >= 3 and len(target_norm) >= 3:
+            if trade_norm in target_norm or target_norm in trade_norm:
+                return target
+        if len(trade_norm) >= 4 and len(target_norm) >= 4:
+            ratio = SequenceMatcher(None, trade_norm, target_norm).ratio()
+            if ratio > best[0]:
+                best = (ratio, target)
+    return best[1] if best[0] >= 0.7 else None
 
 
 def get_db():
@@ -254,6 +294,8 @@ def main():
                 # (아파트명, 전용면적)별로 모든 매칭 거래를 수집 후 정렬
                 trade_groups = {}  # key → list[(date_int, row_dict)]
                 total_fetched = 0
+                matched_target_apts = set()  # 매칭된 CSV 아파트명
+                sample_unmatched = {}  # 샘플: 매칭 안된 실거래가 아파트명 (최대 10개)
 
                 for ym in months_to_fetch:
                     df = trade_scraper._fetch("아파트매매", code, ym, TRADE_FIELDS)
@@ -265,8 +307,12 @@ def main():
                     matched_this_month = 0
                     for _, row in df.iterrows():
                         trade_apt = str(row.get("아파트명", row.get("aptNm", ""))).strip()
-                        if not _match_apt_name(trade_apt, apt_names):
+                        matched = _find_matching_target(trade_apt, apt_names)
+                        if not matched:
+                            if trade_apt and len(sample_unmatched) < 10:
+                                sample_unmatched[trade_apt] = True
                             continue
+                        matched_target_apts.add(matched)
 
                         try:
                             yy = int(row.get("년", row.get("dealYear", 0)))
@@ -286,6 +332,20 @@ def main():
 
                 print("    → 6개월 합계 {}건 조회, {}건 아파트(+면적) 그룹".format(
                     total_fetched, len(trade_groups)))
+
+                # 매칭 진단
+                unmatched_targets = apt_names - matched_target_apts
+                if unmatched_targets:
+                    print("    [진단] CSV에 있지만 실거래가 매칭 실패: {}개".format(
+                        len(unmatched_targets)))
+                    for u in sorted(unmatched_targets)[:10]:
+                        print("      - {}".format(u))
+                    if len(unmatched_targets) > 10:
+                        print("      ... 외 {}개".format(len(unmatched_targets) - 10))
+                    if sample_unmatched:
+                        print("    [참고] 이 지역 실거래가 아파트명 예시:")
+                        for u in list(sample_unmatched.keys())[:10]:
+                            print("      - {}".format(u))
 
                 for (apt_name, _area), trades in trade_groups.items():
                     # 날짜 역순 정렬, 상위 3건 추출
