@@ -133,12 +133,19 @@ function renderMarkers() {
 
 function buildInfoContent(item, isAuction) {
   if (isAuction) {
+    var aptName = item['아파트명'] || item['사건번호'] || '-';
+    var result = item['매각결과'] || '';
+    var appraisal = formatWon(item['감정가']);
+    var sale = item['매각금액'] ? formatWon(item['매각금액']) : '-';
+    var resultBadge = result === '매각'
+      ? '<span style="background:#dcfce7;color:#166534;padding:1px 6px;border-radius:4px;font-size:11px;font-weight:700;">매각</span>'
+      : result === '유찰' ? '<span style="background:#fff7ed;color:#9a3412;padding:1px 6px;border-radius:4px;font-size:11px;font-weight:700;">유찰</span>' : '';
     return '<div class="info-window info-auction">'
-      + '<span class="info-badge badge-auction">경매</span>'
-      + '<div class="info-title">' + (item['사건번호'] || '-') + '</div>'
-      + '<div class="info-row">' + (item['소재지'] || '').substring(0, 30) + '</div>'
-      + '<div class="info-price">최저가 ' + (item['최저매각가'] || '-') + '</div>'
-      + '<div class="info-row">감정가 ' + (item['감정가'] || '-') + '</div>'
+      + '<span class="info-badge badge-auction">경매</span> ' + resultBadge
+      + '<div class="info-title">' + aptName + '</div>'
+      + '<div class="info-row">' + (item['동명'] || item['주소'] || '').substring(0, 40) + '</div>'
+      + '<div class="info-price">' + sale + '</div>'
+      + '<div class="info-row">감정가 ' + appraisal + '</div>'
       + '<div class="info-row">매각기일 ' + (item['매각기일'] || '-') + '</div>'
       + '</div>';
   } else {
@@ -165,6 +172,21 @@ function formatPrice(raw) {
     return 만 > 0 ? 억 + '억 ' + 만.toLocaleString() + '만원' : 억 + '억원';
   }
   return n.toLocaleString() + '만원';
+}
+
+// 원 단위 → 억/만원 표시
+function formatWon(raw) {
+  if (!raw && raw !== 0) return '-';
+  var n = typeof raw === 'number' ? raw : parseInt(String(raw).replace(/,/g, '').trim(), 10);
+  if (isNaN(n) || n === 0) return '-';
+  if (n >= 100000000) {
+    var 억 = Math.floor(n / 100000000);
+    var 만 = Math.floor((n % 100000000) / 10000);
+    return 만 > 0 ? 억 + '억 ' + 만.toLocaleString() + '만원' : 억 + '억원';
+  } else if (n >= 10000) {
+    return (Math.floor(n / 10000)).toLocaleString() + '만원';
+  }
+  return n.toLocaleString() + '원';
 }
 
 // 초기화

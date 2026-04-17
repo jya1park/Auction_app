@@ -71,14 +71,70 @@ class DetailSheet extends StatelessWidget {
   }
 
   List<Widget> _buildAuctionDetail(ColorScheme cs) {
+    final aptName = (data['아파트명'] ?? '').toString();
+    final dongName = (data['동명'] ?? '').toString();
+    final address = (data['주소'] ?? data['소재지'] ?? '-').toString();
+    final usage = (data['용도'] ?? data['물건종류'] ?? '-').toString();
+    final court = (data['법원'] ?? '').toString();
+    final area = data['전용면적'];
+    final appraisal = data['감정가'] ?? 0;
+    final saleAmount = data['매각금액'] ?? 0;
+    final saleResult = (data['매각결과'] ?? '-').toString();
+    final discountRatio = data['할인율'];
+    final saleDate = (data['매각기일'] ?? '-').toString();
+    final note = (data['비고'] ?? '').toString();
+
+    final isSold = saleResult == '매각';
+
     return [
-      _title(data['사건번호'] ?? '-'),
-      const SizedBox(height: 12),
-      _infoTile(Icons.location_on, '소재지', data['소재지'] ?? '-'),
-      _infoTile(Icons.category, '물건종류', data['물건종류'] ?? '-'),
+      _title(aptName.isNotEmpty ? aptName : (data['사건번호'] ?? '-').toString()),
+      if (dongName.isNotEmpty) ...[
+        const SizedBox(height: 2),
+        Text(dongName, style: TextStyle(fontSize: 14, color: cs.outline)),
+      ],
       const SizedBox(height: 12),
 
-      // 금액 카드
+      // 매각 결과 배지
+      Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: isSold ? Colors.green.shade100 : Colors.orange.shade100,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              saleResult,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                color: isSold ? Colors.green.shade900 : Colors.orange.shade900,
+              ),
+            ),
+          ),
+          if (discountRatio != null && discountRatio is num && discountRatio > 0) ...[
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: cs.primaryContainer,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                '낙찰률 ${discountRatio.toStringAsFixed(1)}%',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: cs.onPrimaryContainer,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+      const SizedBox(height: 12),
+
+      // 금액 카드 (감정가 vs 매각금액)
       Card(
         color: cs.errorContainer.withAlpha(60),
         child: Padding(
@@ -91,9 +147,9 @@ class DetailSheet extends StatelessWidget {
                   children: [
                     Text('감정가', style: TextStyle(fontSize: 12, color: cs.outline)),
                     const SizedBox(height: 4),
-                    Text(data['감정가'] ?? '-',
+                    Text(_formatWon(appraisal),
                         style: const TextStyle(
-                            fontSize: 17, fontWeight: FontWeight.w800)),
+                            fontSize: 16, fontWeight: FontWeight.w800)),
                   ],
                 ),
               ),
@@ -103,15 +159,19 @@ class DetailSheet extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('최저매각가',
+                    Text(isSold ? '매각금액' : '최저매각가',
                         style: TextStyle(fontSize: 12, color: cs.outline)),
                     const SizedBox(height: 4),
-                    Text(data['최저매각가'] ?? '-',
-                        style: TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w800,
-                          color: cs.error,
-                        )),
+                    Text(
+                      saleAmount is num && saleAmount > 0
+                          ? _formatWon(saleAmount)
+                          : '-',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: cs.error,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -120,9 +180,42 @@ class DetailSheet extends StatelessWidget {
         ),
       ),
       const SizedBox(height: 8),
-      _infoTile(Icons.event, '매각기일', data['매각기일'] ?? '-'),
-      _infoTile(Icons.info_outline, '상태', data['상태'] ?? '-'),
+      _infoTile(Icons.gavel, '사건번호', data['사건번호']?.toString() ?? '-'),
+      _infoTile(Icons.location_on, '소재지', address),
+      _infoTile(Icons.category, '용도', usage),
+      if (area != null && area is num && area > 0)
+        _infoTile(Icons.square_foot, '전용면적', '${area}㎡'),
+      if (court.isNotEmpty) _infoTile(Icons.account_balance, '법원', court),
+      _infoTile(Icons.event, '매각기일', saleDate),
+      if (note.isNotEmpty) _infoTile(Icons.info_outline, '비고', note),
     ];
+  }
+
+  String _formatWon(dynamic raw) {
+    if (raw == null) return '-';
+    num n;
+    if (raw is num) {
+      n = raw;
+    } else {
+      final parsed = int.tryParse(raw.toString().replaceAll(',', '').trim());
+      if (parsed == null) return raw.toString();
+      n = parsed;
+    }
+    if (n == 0) return '-';
+    // 원 단위 → 억/만원 단위 변환
+    if (n >= 100000000) {
+      final 억 = n ~/ 100000000;
+      final 만 = (n % 100000000) ~/ 10000;
+      return 만 > 0 ? '$억억 ${_numberFormat(만.toInt())}만원' : '$억억원';
+    } else if (n >= 10000) {
+      return '${_numberFormat((n ~/ 10000).toInt())}만원';
+    }
+    return '${_numberFormat(n.toInt())}원';
+  }
+
+  String _numberFormat(int n) {
+    return n.toString().replaceAllMapped(
+        RegExp(r'(\d)(?=(\d{3})+(?!\d))'), (m) => '${m[1]},');
   }
 
   List<Widget> _buildTradeDetail(ColorScheme cs) {
