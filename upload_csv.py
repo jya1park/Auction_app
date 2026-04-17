@@ -218,17 +218,24 @@ def main():
 
             # CSV에서 지역별 아파트명 목록 수집
             target_apts = {}  # {region_code: set(아파트명)}
+            # 경매 좌표 재사용용: 정규화된 아파트명 → (lat, lng)
+            apt_coords = {}
             for item in auction_items:
                 code = item.get("_region_code", "")
                 apt = item.get("아파트명", "").strip()
                 if code and apt:
                     target_apts.setdefault(code, set()).add(apt)
+                lat = item.get("lat", 0)
+                lng = item.get("lng", 0)
+                if apt and lat and lng:
+                    apt_coords[_normalize_apt_name(apt)] = (lat, lng)
 
             print("  매칭 대상 아파트:")
             for code, apts in target_apts.items():
                 print("    {} → {}".format(code, ", ".join(sorted(apts)[:5])))
                 if len(apts) > 5:
                     print("         ... 외 {}개".format(len(apts) - 5))
+            print("  경매 좌표 캐시: {}건".format(len(apt_coords)))
 
             # 지역별로 6개월치 조회 후 아파트+면적 단위 최신 거래만 선택
             for code in region_codes_found:
@@ -306,22 +313,41 @@ def main():
                     trade_data["최근거래"] = recent_trades
                     trade_data["거래건수_6개월"] = len(trades)
 
-                    if not args.skip_geocode:
+                    # 좌표 우선순위:
+                    #   1) 경매 캐시 (같은 아파트의 경매 좌표 재사용 - 가장 정확)
+                    #   2) 카카오 geocoding
+                    cached = apt_coords.get(_normalize_apt_name(apt_name))
+                    if cached:
+                        trade_data["lat"] = cached[0]
+                        trade_data["lng"] = cached[1]
+                        trade_data["_coord_source"] = "auction_cache"
+                    elif not args.skip_geocode:
                         dong = trade_data.get("법정동", trade_data.get("umdNm", ""))
                         trade_addr = "{} {} {}".format(region_name, dong, apt_name)
                         coords = geocode(trade_addr)
                         if coords:
                             trade_data["lat"] = coords["lat"]
                             trade_data["lng"] = coords["lng"]
+                            trade_data["_coord_source"] = "geocode"
                         else:
                             trade_data["lat"] = 0.0
                             trade_data["lng"] = 0.0
+                            trade_data["_coord_source"] = "failed"
                         time.sleep(0.1)
+                    else:
+                        trade_data["lat"] = 0.0
+                        trade_data["lng"] = 0.0
 
                     all_trades.append(trade_data)
 
+            # 좌표 소스별 집계
+            cache_count = sum(1 for t in all_trades if t.get("_coord_source") == "auction_cache")
+            geo_count = sum(1 for t in all_trades if t.get("_coord_source") == "geocode")
+            fail_count = sum(1 for t in all_trades if t.get("_coord_source") == "failed")
             print("  → 실거래가 총 {}건 (각 아파트+면적별 1건, 최근 3개월 이력 포함)".format(
                 len(all_trades)))
+            print("    좌표 출처: 경매캐시 {}건, geocode {}건, 실패 {}건".format(
+                cache_count, geo_count, fail_count))
 
     # Firestore 업로드
     print(f"\n{'='*60}")
