@@ -242,16 +242,37 @@ def main():
         else:
             trade_scraper = RealEstateScraper(service_key)
 
-            # 최근 N개월치 YYYYMM 생성 (지난달부터 과거로)
-            months_to_fetch = []
-            now = datetime.now()
-            y, m = now.year, now.month
-            for _ in range(args.months):
-                m -= 1
-                if m == 0:
-                    m = 12
-                    y -= 1
-                months_to_fetch.append("{:04d}{:02d}".format(y, m))
+            def _gen_months(skip, count):
+                """지난달부터 skip개월 건너뛰고 count개월치 YYYYMM 생성"""
+                result = []
+                now = datetime.now()
+                y, m = now.year, now.month
+                # skip만큼 과거로
+                for _ in range(skip):
+                    m -= 1
+                    if m == 0:
+                        m = 12
+                        y -= 1
+                # count개월 수집
+                for _ in range(count):
+                    m -= 1
+                    if m == 0:
+                        m = 12
+                        y -= 1
+                    result.append("{:04d}{:02d}".format(y, m))
+                return result
+
+            # 1차: 최근 6개월 (지난달 ~ 6개월 전)
+            initial_months = _gen_months(skip=1, count=6)
+            # 2차(확장): 7개월 ~ 12개월 전 (미매칭 아파트용)
+            extension_months = _gen_months(skip=7, count=6)
+
+            # 하위호환: --months 옵션이 주어지면 초기 기간으로 적용
+            if args.months != 6:
+                initial_months = _gen_months(skip=1, count=args.months)
+                extension_months = []  # 명시적 지정 시 확장 비활성화
+
+            months_to_fetch = initial_months
 
             print("  조회 개월: {} ({}개월)".format(
                 ", ".join(months_to_fetch), len(months_to_fetch)))
@@ -336,8 +357,48 @@ def main():
                 print("    → 6개월 합계 {}건 조회, {}건 아파트(+면적) 그룹".format(
                     total_fetched, len(trade_groups)))
 
-                # 매칭 진단
+                # 하이브리드: 미매칭이 있으면 추가 6개월(7~12개월 전) 확장 조회
                 unmatched_targets = apt_names - matched_target_apts
+                if unmatched_targets and extension_months:
+                    print("    [확장] 미매칭 {}건 추가 조회 (7~12개월 전)".format(
+                        len(unmatched_targets)))
+                    ext_matched_count = 0
+                    for ym in extension_months:
+                        df = trade_scraper._fetch(
+                            "아파트매매", code, ym, TRADE_FIELDS)
+                        if df.empty:
+                            continue
+
+                        for _, row in df.iterrows():
+                            trade_apt = str(row.get("아파트명", row.get("aptNm", ""))).strip()
+                            # 미매칭 아파트만 검색
+                            matched = _find_matching_target(trade_apt, unmatched_targets)
+                            if not matched:
+                                continue
+
+                            matched_target_apts.add(matched)
+                            ext_matched_count += 1
+
+                            try:
+                                yy = int(row.get("년", row.get("dealYear", 0)))
+                                mm = int(row.get("월", row.get("dealMonth", 0)))
+                                dd = int(row.get("일", row.get("dealDay", 0)))
+                                date_int = yy * 10000 + mm * 100 + dd
+                            except (ValueError, TypeError):
+                                date_int = 0
+
+                            area = str(row.get("전용면적(㎡)", row.get("excluUseAr", ""))).strip()
+                            key = (matched, area)
+                            row_dict = row.to_dict()
+                            row_dict["_matched_auction_apt"] = matched
+                            trade_groups.setdefault(key, []).append((date_int, row_dict))
+
+                    new_matched = matched_target_apts - (apt_names - unmatched_targets)
+                    print("    [확장] → 추가 매칭 {}건, 아파트 {}개 구제".format(
+                        ext_matched_count, len(new_matched)))
+                    unmatched_targets = apt_names - matched_target_apts
+
+                # 매칭 진단 (확장 후 최종)
                 if unmatched_targets:
                     print("    [진단] CSV에 있지만 실거래가 매칭 실패: {}개".format(
                         len(unmatched_targets)))
@@ -374,7 +435,8 @@ def main():
                     trade_data["_trade_type"] = "아파트매매"
                     trade_data["_type"] = "trade"
                     trade_data["최근거래"] = recent_trades
-                    trade_data["거래건수_6개월"] = len(trades)
+                    trade_data["거래건수"] = len(trades)
+                    trade_data["거래건수_6개월"] = len(trades)  # 하위호환
 
                     # 좌표 우선순위:
                     #   1) 경매 캐시 (같은 아파트의 경매 좌표 재사용 - 가장 정확)
