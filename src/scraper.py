@@ -32,7 +32,7 @@ class RealEstateScraper:
         self.debug = debug
 
     def _call_api(self, url: str, lawd_cd: str, deal_ymd: str) -> Optional[str]:
-        """API 호출 후 XML 텍스트 반환"""
+        """API 호출 후 XML 텍스트 반환. 403 에러 시 HTTPError 예외 발생"""
         params = {
             "serviceKey": self.service_key,
             "LAWD_CD": lawd_cd,
@@ -43,12 +43,20 @@ class RealEstateScraper:
 
         try:
             resp = requests.get(url, params=params, timeout=30)
+            # 403/권한 에러는 호출자가 처리할 수 있도록 예외 전파
+            if resp.status_code == 403:
+                raise requests.HTTPError(
+                    "403 Forbidden: API 활용신청이 안 된 것 같습니다. "
+                    "data.go.kr에서 해당 API 활용신청을 해주세요."
+                )
             resp.raise_for_status()
             if self.debug:
                 print(f"[DEBUG] URL: {resp.url}")
                 print(f"[DEBUG] Status: {resp.status_code}")
                 print(f"[DEBUG] 응답 앞 1000자:\n{resp.text[:1000]}")
             return resp.text
+        except requests.HTTPError:
+            raise  # 403 등은 상위로 전파
         except requests.RequestException as e:
             print(f"[오류] API 호출 실패: {e}")
             return None

@@ -241,6 +241,26 @@ def main():
             print("        또는 --api-key 옵션으로 전달")
         else:
             trade_scraper = RealEstateScraper(service_key)
+            # 오피스텔 API 비활성 플래그 (403 에러 감지 시 이후 호출 스킵)
+            officetel_enabled = {"value": True}
+
+            def _try_fetch_officetel(code, ym):
+                """오피스텔매매 조회. 403/권한 없으면 비활성화"""
+                if not officetel_enabled["value"]:
+                    return None
+                try:
+                    df = trade_scraper._fetch(
+                        "오피스텔매매", code, ym, OFFICETEL_TRADE_FIELDS)
+                    return df
+                except Exception as e:
+                    msg = str(e)
+                    if "403" in msg or "Forbidden" in msg or "권한" in msg:
+                        print("  [경고] 오피스텔 API 권한 없음 → 이후 호출 생략")
+                        print("        data.go.kr에서 '국토교통부_오피스텔 매매 실거래가' 활용신청 필요")
+                        officetel_enabled["value"] = False
+                    else:
+                        print("  [경고] 오피스텔 조회 실패: {}".format(msg[:100]))
+                    return None
 
             def _gen_months(skip, count):
                 """지난달부터 skip개월 건너뛰고 count개월치 YYYYMM 생성"""
@@ -353,17 +373,20 @@ def main():
                     apt_total = len(df_apt) if not df_apt.empty else 0
                     apt_matched = _process_df(df_apt, apt_names, "아파트매매") if apt_total else 0
 
-                    # 2) 오피스텔매매 (파크앤시티타워 같은 물건 커버)
-                    df_offi = trade_scraper._fetch("오피스텔매매", code, ym, OFFICETEL_TRADE_FIELDS)
-                    offi_total = len(df_offi) if not df_offi.empty else 0
+                    # 2) 오피스텔매매 (권한 없으면 자동 스킵)
+                    df_offi = _try_fetch_officetel(code, ym)
+                    offi_total = len(df_offi) if (df_offi is not None and not df_offi.empty) else 0
                     offi_matched = _process_df(df_offi, apt_names, "오피스텔매매") if offi_total else 0
 
                     total_fetched += apt_total + offi_total
                     if apt_total == 0 and offi_total == 0:
                         print("    {} → 0건".format(ym))
-                    else:
+                    elif officetel_enabled["value"]:
                         print("    {} → 아파트 {}건({}매칭) / 오피스텔 {}건({}매칭)".format(
                             ym, apt_total, apt_matched, offi_total, offi_matched))
+                    else:
+                        print("    {} → 아파트 {}건({}매칭)".format(
+                            ym, apt_total, apt_matched))
 
                 print("    → 6개월 합계 {}건 조회, {}건 아파트(+면적) 그룹".format(
                     total_fetched, len(trade_groups)))
@@ -380,9 +403,8 @@ def main():
                         if not df_apt.empty:
                             ext_matched_count += _process_df(
                                 df_apt, unmatched_targets, "아파트매매")
-                        df_offi = trade_scraper._fetch(
-                            "오피스텔매매", code, ym, OFFICETEL_TRADE_FIELDS)
-                        if not df_offi.empty:
+                        df_offi = _try_fetch_officetel(code, ym)
+                        if df_offi is not None and not df_offi.empty:
                             ext_matched_count += _process_df(
                                 df_offi, unmatched_targets, "오피스텔매매")
 
