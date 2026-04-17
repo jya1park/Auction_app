@@ -244,8 +244,8 @@ def main():
 
                 print("  {} ({}) 조회 중...".format(region_name, code))
 
-                # 최신 거래만 보관: key = (아파트명, 전용면적)
-                latest_map = {}  # key → (date_int, row_dict)
+                # (아파트명, 전용면적)별로 모든 매칭 거래를 수집 후 정렬
+                trade_groups = {}  # key → list[(date_int, row_dict)]
                 total_fetched = 0
 
                 for ym in months_to_fetch:
@@ -255,12 +255,12 @@ def main():
                         continue
                     total_fetched += len(df)
 
+                    matched_this_month = 0
                     for _, row in df.iterrows():
                         trade_apt = str(row.get("아파트명", row.get("aptNm", ""))).strip()
                         if not _match_apt_name(trade_apt, apt_names):
                             continue
 
-                        # 거래일 계산 (YYYYMMDD 정수로 정렬)
                         try:
                             yy = int(row.get("년", row.get("dealYear", 0)))
                             mm = int(row.get("월", row.get("dealMonth", 0)))
@@ -271,21 +271,40 @@ def main():
 
                         area = str(row.get("전용면적(㎡)", row.get("excluUseAr", ""))).strip()
                         key = (trade_apt, area)
+                        trade_groups.setdefault(key, []).append((date_int, row.to_dict()))
+                        matched_this_month += 1
 
-                        if key not in latest_map or date_int > latest_map[key][0]:
-                            latest_map[key] = (date_int, row.to_dict())
+                    print("    {} → 전체 {}건, 매칭 {}건".format(
+                        ym, len(df), matched_this_month))
 
-                    print("    {} → 전체 {}건, 누적 매칭 {}건".format(
-                        ym, len(df), len(latest_map)))
+                print("    → 6개월 합계 {}건 조회, {}건 아파트(+면적) 그룹".format(
+                    total_fetched, len(trade_groups)))
 
-                print("    → 6개월 합계 {}건 조회, {}건 아파트(+면적) 최신 거래 추출".format(
-                    total_fetched, len(latest_map)))
+                for (apt_name, _area), trades in trade_groups.items():
+                    # 날짜 역순 정렬, 상위 3건 추출
+                    trades.sort(key=lambda t: t[0], reverse=True)
+                    top3 = trades[:3]
+                    latest_row = top3[0][1]
 
-                for (apt_name, _area), (_date, trade_data) in latest_map.items():
+                    # 최근 3건 요약 배열
+                    recent_trades = []
+                    for date_int, row_dict in top3:
+                        recent_trades.append({
+                            "거래금액": str(row_dict.get("거래금액(만원)", row_dict.get("dealAmount", ""))).strip(),
+                            "년": int(row_dict.get("년", row_dict.get("dealYear", 0)) or 0),
+                            "월": int(row_dict.get("월", row_dict.get("dealMonth", 0)) or 0),
+                            "일": int(row_dict.get("일", row_dict.get("dealDay", 0)) or 0),
+                            "층": str(row_dict.get("층", row_dict.get("floor", ""))).strip(),
+                            "전용면적": str(row_dict.get("전용면적(㎡)", row_dict.get("excluUseAr", ""))).strip(),
+                        })
+
+                    trade_data = dict(latest_row)  # 최신 거래를 base로
                     trade_data["_region_code"] = code
                     trade_data["_region_name"] = region_name
                     trade_data["_trade_type"] = "아파트매매"
                     trade_data["_type"] = "trade"
+                    trade_data["최근거래"] = recent_trades
+                    trade_data["거래건수_6개월"] = len(trades)
 
                     if not args.skip_geocode:
                         dong = trade_data.get("법정동", trade_data.get("umdNm", ""))
@@ -301,7 +320,8 @@ def main():
 
                     all_trades.append(trade_data)
 
-            print("  → 실거래가 총 {}건 (각 아파트+면적별 최신 거래)".format(len(all_trades)))
+            print("  → 실거래가 총 {}건 (각 아파트+면적별 1건, 최근 3개월 이력 포함)".format(
+                len(all_trades)))
 
     # Firestore 업로드
     print(f"\n{'='*60}")

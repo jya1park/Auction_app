@@ -222,46 +222,135 @@ class DetailSheet extends StatelessWidget {
     final aptName = data['아파트명'] ?? data['aptNm'] ?? '-';
     final dong = data['법정동'] ?? data['umdNm'] ?? '';
     final area = data['전용면적(㎡)'] ?? data['excluUseAr'] ?? '';
-    final floor = data['층'] ?? data['floor'] ?? '';
-    final year = data['년'] ?? data['dealYear'] ?? '';
-    final month = data['월'] ?? data['dealMonth'] ?? '';
-    final day = data['일'] ?? data['dealDay'] ?? '';
     final buildYear = data['건축년도'] ?? data['buildYear'] ?? '';
     final regionName = data['_region_name'] ?? '';
-    final price = data['거래금액(만원)'] ?? data['dealAmount'] ?? '-';
+    final tradeCount = data['거래건수_6개월'];
+    final recentRaw = data['최근거래'];
+    final recentTrades = (recentRaw is List) ? recentRaw : <dynamic>[];
 
     return [
       _title(aptName),
       const SizedBox(height: 4),
-      Text(regionName,
-          style: TextStyle(fontSize: 14, color: cs.outline)),
-      const SizedBox(height: 16),
+      Text(regionName, style: TextStyle(fontSize: 14, color: cs.outline)),
+      const SizedBox(height: 12),
 
-      // 금액 카드
-      Card(
-        color: cs.primaryContainer.withAlpha(80),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Center(
-            child: Text(
-              _formatPrice(price.toString()),
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.w800,
-                color: cs.error,
+      if (tradeCount != null)
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: cs.secondaryContainer,
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Text(
+            '최근 6개월 $tradeCount건 거래',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: cs.onSecondaryContainer,
+            ),
+          ),
+        ),
+      const SizedBox(height: 12),
+
+      // 최근 거래 3건
+      if (recentTrades.isNotEmpty)
+        Card(
+          color: cs.primaryContainer.withAlpha(60),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('최근 거래 (최대 3건)',
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: cs.outline)),
+                const SizedBox(height: 10),
+                ..._buildRecentTradeRows(recentTrades, cs),
+              ],
+            ),
+          ),
+        )
+      else
+        // 구버전 호환: 최근거래 배열이 없으면 단건 표시
+        Card(
+          color: cs.primaryContainer.withAlpha(80),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Center(
+              child: Text(
+                _formatPrice((data['거래금액(만원)'] ?? data['dealAmount'] ?? '-')
+                    .toString()),
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                  color: cs.error,
+                ),
               ),
             ),
           ),
         ),
-      ),
+
       const SizedBox(height: 12),
-      _infoTile(Icons.location_on, '법정동', dong),
-      _infoTile(Icons.square_foot, '전용면적', '$area㎡'),
-      _infoTile(Icons.layers, '층', '$floor층'),
-      _infoTile(Icons.calendar_today, '거래일', '$year.$month.$day'),
+      _infoTile(Icons.location_on, '법정동', dong.toString()),
+      if (area.toString().isNotEmpty)
+        _infoTile(Icons.square_foot, '전용면적', '$area㎡'),
       if (buildYear.toString().isNotEmpty)
         _infoTile(Icons.home, '건축년도', '$buildYear년'),
     ];
+  }
+
+  List<Widget> _buildRecentTradeRows(List<dynamic> recentTrades, ColorScheme cs) {
+    final rows = <Widget>[];
+    for (var i = 0; i < recentTrades.length; i++) {
+      final t = recentTrades[i] as Map<dynamic, dynamic>;
+      final price = (t['거래금액'] ?? '').toString();
+      final y = t['년'] ?? '';
+      final m = t['월'] ?? '';
+      final floor = (t['층'] ?? '').toString();
+      final isLatest = i == 0;
+
+      rows.add(Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          children: [
+            Container(
+              width: 52,
+              padding: const EdgeInsets.symmetric(vertical: 3),
+              decoration: BoxDecoration(
+                color: isLatest ? cs.primary : cs.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                '$y.$m',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: isLatest ? cs.onPrimary : cs.onSurface,
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                _formatPrice(price),
+                style: TextStyle(
+                  fontSize: isLatest ? 17 : 15,
+                  fontWeight: FontWeight.w800,
+                  color: isLatest ? cs.error : cs.onSurface,
+                ),
+              ),
+            ),
+            if (floor.isNotEmpty)
+              Text('${floor}층',
+                  style: TextStyle(fontSize: 12, color: cs.outline)),
+          ],
+        ),
+      ));
+    }
+    return rows;
   }
 
   Widget _title(String text) {
