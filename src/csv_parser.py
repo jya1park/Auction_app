@@ -85,26 +85,58 @@ def _extract_apt_from_address(address):
     """
     소재지 문자열에서 아파트명 추출 (괄호 없이 임베드된 경우)
 
-    패턴: ... 지번 [아파트명] N동 N층NNN호
-    예시:
-      - "하동 1001 광교 더 포레스트 4008동 25층2501호" → "광교 더 포레스트"
-      - "동백동 574 호수마을월드메르디앙 1606동 3층302호" → "호수마을월드메르디앙"
-      - "상현로 2 4704동 5층501호" → "" (지번 뒤에 바로 동번호)
+    패턴1: ... 지번 [아파트명] N동 N층NNN호
+      예: "하동 1001 광교 더 포레스트 4008동 25층2501호" → "광교 더 포레스트"
+    패턴2: ... 지번 [아파트명] (주소 끝, 동번호 없음)
+      예: "신봉동 985 신봉마을동일하이빌3단지" → "신봉마을동일하이빌3단지"
+    패턴3: ... 도로명 번호 [아파트명] N층NNN호
+      예: "경수대로 406 파크앤시티타워2 8층801호" → "파크앤시티타워2"
     """
-    # "지번숫자 [아파트명] N동" 패턴
-    # 지번 뒤 공백 + 아파트명 + 공백 + "NNN동"
+    # 패턴1: "지번 [아파트명] N동" (동번호 있는 경우)
     m = re.search(
         r'(?:\d+(?:-\d+)?)\s+([가-힣A-Za-z0-9\s·\']+?)\s+\d+동\s',
         address + " ",
     )
     if m:
         candidate = m.group(1).strip()
-        # 너무 짧거나 숫자만이면 제외
-        if len(candidate) >= 2 and not candidate.replace(' ', '').isdigit():
-            # '동', '읍', '면'으로 끝나면 법정동일 가능성 → 제외
-            if not re.match(r'^\S+[동읍면리]$', candidate):
-                return candidate
+        if _is_valid_apt_name(candidate):
+            return candidate
+
+    # 패턴2: "법정동 지번 [아파트명]" (동번호 없이 주소 끝)
+    m = re.search(
+        r'[동읍면리]\s+\d+(?:-\d+)?\s+(.+?)$',
+        address.strip(),
+    )
+    if m:
+        candidate = m.group(1).strip()
+        candidate = re.sub(r'\s*\d+동\s*\d+층.*$', '', candidate).strip()
+        candidate = re.sub(r'\s*\d+층.*$', '', candidate).strip()
+        candidate = re.sub(r'\s*\d+호$', '', candidate).strip()
+        if _is_valid_apt_name(candidate):
+            return candidate
+
+    # 패턴3: "도로명 번호 [아파트명] N동/N층" (도로명 주소, 아파트명이 한글로 시작)
+    m = re.search(
+        r'(?:로|길)\s+\d+(?:-\d+)?\s+([가-힣][가-힣A-Za-z0-9\s·\']+?)(?:\s+\d+동|\s+\d+층|$)',
+        address.strip(),
+    )
+    if m:
+        candidate = m.group(1).strip()
+        if _is_valid_apt_name(candidate):
+            return candidate
+
     return ""
+
+
+def _is_valid_apt_name(name):
+    """아파트명 후보가 유효한지 확인"""
+    if not name or len(name) < 2:
+        return False
+    if name.replace(' ', '').isdigit():
+        return False
+    if re.match(r'^[가-힣]+[동읍면리]$', name):
+        return False
+    return True
 
 
 def parse_sale_date(raw: str) -> str:
