@@ -12,9 +12,11 @@ CSV 컬럼:
 
 import csv
 import re
+from typing import Dict, List
 
 
-def parse_location(raw: str) -> dict:
+def parse_location(raw):
+    # type: (str) -> Dict
     """
     소재지 및 내역 문자열에서 개별 필드 추출
 
@@ -101,7 +103,8 @@ def _to_int(val: str) -> int:
         return 0
 
 
-def parse_csv(csv_path: str) -> list[dict]:
+def parse_csv(csv_path):
+    # type: (str) -> List[Dict]
     """
     CSV 파일 파싱
 
