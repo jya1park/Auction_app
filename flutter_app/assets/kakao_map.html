@@ -42,7 +42,7 @@
 <body>
 <div id="map"></div>
 
-<script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=KAKAO_JS_KEY_PLACEHOLDER&libraries=services"></script>
+<script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=KAKAO_JS_KEY_PLACEHOLDER&libraries=services&autoload=false"></script>
 <script>
 var map;
 var markers = [];
@@ -189,8 +189,10 @@ function formatWon(raw) {
   return n.toLocaleString() + '원';
 }
 
-// 초기화
-initMap();
+// SDK 로딩 완료 후 초기화
+kakao.maps.load(function() {
+  initMap();
+});
 </script>
 </body>
 </html>
