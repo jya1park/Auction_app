@@ -5,6 +5,7 @@
 
 import time
 import xml.etree.ElementTree as ET
+from typing import Dict, List, Optional
 
 import pandas as pd
 import requests
@@ -30,7 +31,7 @@ class RealEstateScraper:
         self.service_key = service_key
         self.debug = debug
 
-    def _call_api(self, url: str, lawd_cd: str, deal_ymd: str) -> str | None:
+    def _call_api(self, url: str, lawd_cd: str, deal_ymd: str) -> Optional[str]:
         """API 호출 후 XML 텍스트 반환"""
         params = {
             "serviceKey": self.service_key,
@@ -52,7 +53,7 @@ class RealEstateScraper:
             print(f"[오류] API 호출 실패: {e}")
             return None
 
-    def _parse_xml(self, xml_text: str, field_map: dict) -> list[dict]:
+    def _parse_xml(self, xml_text: str, field_map: dict) -> List[Dict]:
         """XML 응답을 파싱하여 딕셔너리 리스트로 변환"""
         try:
             root = ET.fromstring(xml_text)
@@ -192,7 +193,7 @@ class RealEstateScraper:
         return pd.concat(all_dfs, ignore_index=True)
 
     @staticmethod
-    def _generate_months(start_ymd: str, end_ymd: str) -> list[str]:
+    def _generate_months(start_ymd: str, end_ymd: str) -> List[str]:
         """시작~종료 년월 사이의 모든 YYYYMM 리스트 생성"""
         start_y, start_m = int(start_ymd[:4]), int(start_ymd[4:6])
         end_y, end_m = int(end_ymd[:4]), int(end_ymd[4:6])

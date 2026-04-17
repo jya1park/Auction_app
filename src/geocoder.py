@@ -10,6 +10,7 @@
 
 import os
 import time
+from typing import Dict, List, Optional
 
 import requests
 
@@ -31,7 +32,7 @@ def _get_kakao_key() -> str:
     return ""
 
 
-def geocode(address: str) -> dict | None:
+def geocode(address: str) -> Optional[Dict]:
     """
     주소를 위경도 좌표로 변환
 
@@ -84,7 +85,7 @@ def geocode(address: str) -> dict | None:
     return None
 
 
-def batch_geocode(addresses: list[str], delay: float = 0.2) -> list[dict | None]:
+def batch_geocode(addresses: List[str], delay: float = 0.2) -> List[Optional[Dict]]:
     """여러 주소를 일괄 변환 (API rate limit 고려)"""
     results = []
     for i, addr in enumerate(addresses):

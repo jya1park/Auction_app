@@ -30,6 +30,7 @@ import os
 import sys
 import time
 from datetime import datetime
+from typing import Dict, List
 
 from google.cloud import firestore
 
@@ -73,7 +74,7 @@ def get_service_key() -> str:
     sys.exit(1)
 
 
-def _batch_upload(db, collection_name: str, docs: list[dict]) -> int:
+def _batch_upload(db, collection_name: str, docs: List[Dict]) -> int:
     """Firestore batch 업로드 (500건 제한 자동 처리)"""
     collection = db.collection(collection_name)
     batch = db.batch()

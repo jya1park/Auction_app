@@ -7,9 +7,9 @@
 import json
 import os
 import re
+from typing import Dict, Optional, Tuple
 
-# 시군구명 → 법정동코드 역방향 매핑 (로드 시 생성)
-_REVERSE_MAP: dict[str, tuple[str, str]] = {}  # "강남구" → ("서울특별시", "11680")
+_REVERSE_MAP = {}  # type: Dict[str, Tuple[str, str]]  # "강남구" → ("서울특별시", "11680")
 
 
 def _load_reverse_map():
@@ -29,7 +29,7 @@ def _load_reverse_map():
                     _REVERSE_MAP[gu_only] = (sido, code)
 
 
-def extract_region_from_address(address: str) -> tuple[str, str] | None:
+def extract_region_from_address(address: str) -> Optional[Tuple[str, str]]:
     """
     주소 문자열에서 시군구 코드를 추출
 

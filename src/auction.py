@@ -3,6 +3,8 @@
 - 대한민국 법원 경매정보(courtauction.go.kr)에서 경매 물건 조회
 """
 
+from typing import Dict, List, Optional
+
 import requests
 from bs4 import BeautifulSoup
 
@@ -54,10 +56,10 @@ class AuctionScraper:
 
     def search(
         self,
-        court_name: str | None = None,
-        usage: str | None = None,
-        search_word: str | None = None,
-    ) -> list[dict]:
+        court_name: Optional[str] = None,
+        usage: Optional[str] = None,
+        search_word: Optional[str] = None,
+    ) -> List[Dict]:
         """
         경매 물건 검색
 
@@ -110,7 +112,7 @@ class AuctionScraper:
             print(f"[오류] 경매 조회 실패: {e}")
             return []
 
-    def _parse_list(self, html: str) -> list[dict]:
+    def _parse_list(self, html: str) -> List[Dict]:
         """경매 물건 목록 HTML 파싱"""
         soup = BeautifulSoup(html, "lxml")
         results = []
@@ -152,11 +154,11 @@ class AuctionScraper:
         return results
 
     @staticmethod
-    def list_courts() -> list[str]:
+    def list_courts() -> List[str]:
         """법원 목록 반환"""
         return list(COURT_CODES.keys())
 
     @staticmethod
-    def list_usages() -> list[str]:
+    def list_usages() -> List[str]:
         """용도 목록 반환"""
         return list(USAGE_CODES.keys())
