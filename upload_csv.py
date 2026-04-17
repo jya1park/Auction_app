@@ -106,25 +106,37 @@ def get_db():
     return firestore.Client.from_service_account_json(FIREBASE_KEY_PATH)
 
 
-def get_data_go_kr_key():
-    # 1) 환경변수 우선
-    key = os.environ.get("DATA_GO_KR_API_KEY")
+def _read_env_key(var_name):
+    """환경변수 또는 .env 파일에서 키 읽기"""
+    key = os.environ.get(var_name)
     if key:
         return key
-    # 2) 프로젝트 루트의 .env 파일
     env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
     if os.path.exists(env_path):
         with open(env_path, encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
-                if line.startswith("DATA_GO_KR_API_KEY="):
+                if line.startswith(var_name + "="):
                     val = line.split("=", 1)[1].strip().strip("\"'")
                     if val:
                         return val
-        print(f"  [정보] {env_path} 파일은 있지만 DATA_GO_KR_API_KEY가 없습니다")
-    else:
-        print(f"  [정보] .env 파일을 찾지 못했습니다: {env_path}")
     return ""
+
+
+def get_data_go_kr_key():
+    key = _read_env_key("DATA_GO_KR_API_KEY")
+    if not key:
+        env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+        if os.path.exists(env_path):
+            print(f"  [정보] {env_path} 파일은 있지만 DATA_GO_KR_API_KEY가 없습니다")
+        else:
+            print(f"  [정보] .env 파일을 찾지 못했습니다: {env_path}")
+    return key
+
+
+def get_data_go_kr_office_key():
+    """오피스텔 API 전용 키 (없으면 일반 키로 폴백)"""
+    return _read_env_key("DATA_GO_KR_API_KEY_OFFICE")
 
 
 def batch_upload(db, collection_name, docs, batch_size=400):
@@ -241,22 +253,29 @@ def main():
             print("        또는 --api-key 옵션으로 전달")
         else:
             trade_scraper = RealEstateScraper(service_key)
-            # 오피스텔 API 비활성 플래그 (403 에러 감지 시 이후 호출 스킵)
-            officetel_enabled = {"value": True}
+
+            # 오피스텔 API 전용 키 (별도 활용신청 필요)
+            office_key = get_data_go_kr_office_key()
+            office_scraper = RealEstateScraper(office_key) if office_key else None
+            officetel_enabled = {"value": office_scraper is not None}
+            if office_scraper:
+                print("  [정보] 오피스텔 API 키 감지됨 (DATA_GO_KR_API_KEY_OFFICE)")
+            else:
+                print("  [정보] DATA_GO_KR_API_KEY_OFFICE 없음 → 오피스텔 조회 생략")
 
             def _try_fetch_officetel(code, ym):
-                """오피스텔매매 조회. 403/권한 없으면 비활성화"""
-                if not officetel_enabled["value"]:
+                """오피스텔매매 조회. 권한 없으면 비활성화"""
+                if not officetel_enabled["value"] or office_scraper is None:
                     return None
                 try:
-                    df = trade_scraper._fetch(
+                    df = office_scraper._fetch(
                         "오피스텔매매", code, ym, OFFICETEL_TRADE_FIELDS)
                     return df
                 except Exception as e:
                     msg = str(e)
                     if "403" in msg or "Forbidden" in msg or "권한" in msg:
                         print("  [경고] 오피스텔 API 권한 없음 → 이후 호출 생략")
-                        print("        data.go.kr에서 '국토교통부_오피스텔 매매 실거래가' 활용신청 필요")
+                        print("        data.go.kr에서 해당 API 활용신청 확인 필요")
                         officetel_enabled["value"] = False
                     else:
                         print("  [경고] 오피스텔 조회 실패: {}".format(msg[:100]))
