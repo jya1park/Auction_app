@@ -42,24 +42,39 @@ class _MapScreenState extends State<MapScreen> {
   void _initWebView() {
     _webController = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setBackgroundColor(const Color(0xFFEEEEEE))
       ..addJavaScriptChannel(
         'FlutterChannel',
         onMessageReceived: (message) {
-          // 마커 클릭 시 상세정보 표시
           try {
             final data = jsonDecode(message.message) as Map<String, dynamic>;
+            final event = data['__event'];
+            if (event == 'map_ready') {
+              debugPrint('[카카오맵] 지도 준비 완료');
+              _mapReady = true;
+              _sendDataToMap();
+              return;
+            }
+            if (event == 'debug') {
+              debugPrint('[WebView] ${data['msg']}');
+              return;
+            }
+            // 마커 클릭
             _showDetail(data);
-          } catch (_) {}
+          } catch (e) {
+            debugPrint('[WebView] 메시지 처리 실패: $e');
+          }
         },
       )
       ..setNavigationDelegate(NavigationDelegate(
-        onPageFinished: (_) {
-          _mapReady = true;
-          _sendDataToMap();
+        onPageFinished: (url) {
+          debugPrint('[WebView] 페이지 로드 완료: $url');
+        },
+        onWebResourceError: (err) {
+          debugPrint('[WebView] 에러: ${err.errorCode} ${err.description}');
         },
       ));
 
-    // HTML 로드 (JS 키 삽입)
     _loadMapHtml();
   }
 
@@ -73,12 +88,17 @@ class _MapScreenState extends State<MapScreen> {
     setState(() => _isLoading = true);
     try {
       final items = await _service.getMapItems(limit: 500);
+      debugPrint('[Firestore] ${items.length}건 로드됨');
+      if (items.isNotEmpty) {
+        debugPrint('[Firestore] 첫 항목 샘플: ${items.first.keys.join(", ")}');
+      }
       setState(() {
         _items = items;
         _isLoading = false;
       });
       _sendDataToMap();
-    } catch (e) {
+    } catch (e, stack) {
+      debugPrint('[Firestore] 로드 실패: $e\n$stack');
       setState(() => _isLoading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -89,10 +109,17 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   void _sendDataToMap() {
-    if (!_mapReady || _items.isEmpty) return;
+    if (!_mapReady) {
+      debugPrint('[지도] 아직 준비 안 됨, 대기 중');
+      return;
+    }
+    if (_items.isEmpty) {
+      debugPrint('[지도] 데이터 없음 (Firestore에 map_items가 비어 있거나 좌표가 0)');
+      return;
+    }
+    debugPrint('[지도] ${_items.length}건 마커 전송');
     final json = jsonEncode(_items);
-    // 작은따옴표 이스케이프
-    final escaped = json.replaceAll("'", "\\'");
+    final escaped = json.replaceAll(r'\', r'\\').replaceAll("'", r"\'");
     _webController.runJavaScript("loadMarkers('$escaped')");
   }
 

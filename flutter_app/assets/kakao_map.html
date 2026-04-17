@@ -60,15 +60,40 @@ function initMap() {
     level: 8
   };
   map = new kakao.maps.Map(container, options);
+
+  // Flutter에 지도 준비 완료 통보
+  if (window.FlutterChannel) {
+    window.FlutterChannel.postMessage(JSON.stringify({__event: 'map_ready'}));
+  }
+}
+
+// 디버그 메시지 출력
+function debugLog(msg) {
+  if (window.FlutterChannel) {
+    window.FlutterChannel.postMessage(JSON.stringify({__event: 'debug', msg: msg}));
+  }
 }
 
 // Flutter에서 호출: 마커 데이터 로드
 function loadMarkers(jsonStr) {
-  allItems = JSON.parse(jsonStr);
+  try {
+    allItems = JSON.parse(jsonStr);
+    debugLog('loadMarkers: ' + allItems.length + '건 수신');
+  } catch (e) {
+    debugLog('JSON 파싱 실패: ' + e.message);
+    return;
+  }
+
+  if (!map) {
+    debugLog('[오류] map 객체가 아직 없음');
+    return;
+  }
+
   renderMarkers();
 
   // 데이터가 있으면 첫 번째 유효 좌표로 이동
   var valid = allItems.filter(function(i) { return i.lat && i.lat !== 0; });
+  debugLog('유효 좌표: ' + valid.length + '건');
   if (valid.length > 0) {
     var first = valid[0];
     map.setCenter(new kakao.maps.LatLng(first.lat, first.lng));
