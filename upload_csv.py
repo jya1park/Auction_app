@@ -119,6 +119,8 @@ def main():
                         help="처음 N건만 처리 (테스트용)")
     parser.add_argument("--api-key", default="",
                         help="data.go.kr API 키 (환경변수/.env 대신 직접 전달)")
+    parser.add_argument("--months", type=int, default=6,
+                        help="실거래가 조회 개월 수 (기본 6개월, 각 아파트의 최신 거래만 업로드)")
     args = parser.parse_args()
 
     # CSV 파싱
@@ -199,12 +201,20 @@ def main():
             print("        또는 --api-key 옵션으로 전달")
         else:
             trade_scraper = RealEstateScraper(service_key)
-            now = datetime.now()
-            prev_month = now.month - 1 if now.month > 1 else 12
-            prev_year = now.year if now.month > 1 else now.year - 1
-            year_month = "{:04d}{:02d}".format(prev_year, prev_month)
 
-            print("  기준 월: {}".format(year_month))
+            # 최근 N개월치 YYYYMM 생성 (지난달부터 과거로)
+            months_to_fetch = []
+            now = datetime.now()
+            y, m = now.year, now.month
+            for _ in range(args.months):
+                m -= 1
+                if m == 0:
+                    m = 12
+                    y -= 1
+                months_to_fetch.append("{:04d}{:02d}".format(y, m))
+
+            print("  조회 개월: {} ({}개월)".format(
+                ", ".join(months_to_fetch), len(months_to_fetch)))
 
             # CSV에서 지역별 아파트명 목록 수집
             target_apts = {}  # {region_code: set(아파트명)}
@@ -220,6 +230,7 @@ def main():
                 if len(apts) > 5:
                     print("         ... 외 {}개".format(len(apts) - 5))
 
+            # 지역별로 6개월치 조회 후 아파트+면적 단위 최신 거래만 선택
             for code in region_codes_found:
                 region_name = code
                 for r in search_region(code):
@@ -232,25 +243,45 @@ def main():
                     continue
 
                 print("  {} ({}) 조회 중...".format(region_name, code))
-                df = trade_scraper._fetch("아파트매매", code, year_month, TRADE_FIELDS)
 
-                if df.empty:
-                    print("    → 0건")
-                    continue
+                # 최신 거래만 보관: key = (아파트명, 전용면적)
+                latest_map = {}  # key → (date_int, row_dict)
+                total_fetched = 0
 
-                total = len(df)
+                for ym in months_to_fetch:
+                    df = trade_scraper._fetch("아파트매매", code, ym, TRADE_FIELDS)
+                    if df.empty:
+                        print("    {} → 0건".format(ym))
+                        continue
+                    total_fetched += len(df)
 
-                # CSV 아파트명과 매칭되는 실거래가만 필터링
-                matched_rows = []
-                for _, row in df.iterrows():
-                    trade_apt = str(row.get("아파트명", row.get("aptNm", ""))).strip()
-                    if _match_apt_name(trade_apt, apt_names):
-                        matched_rows.append(row)
+                    for _, row in df.iterrows():
+                        trade_apt = str(row.get("아파트명", row.get("aptNm", ""))).strip()
+                        if not _match_apt_name(trade_apt, apt_names):
+                            continue
 
-                print("    → 전체 {}건 중 {}건 매칭".format(total, len(matched_rows)))
+                        # 거래일 계산 (YYYYMMDD 정수로 정렬)
+                        try:
+                            yy = int(row.get("년", row.get("dealYear", 0)))
+                            mm = int(row.get("월", row.get("dealMonth", 0)))
+                            dd = int(row.get("일", row.get("dealDay", 0)))
+                            date_int = yy * 10000 + mm * 100 + dd
+                        except (ValueError, TypeError):
+                            date_int = 0
 
-                for row in matched_rows:
-                    trade_data = row.to_dict()
+                        area = str(row.get("전용면적(㎡)", row.get("excluUseAr", ""))).strip()
+                        key = (trade_apt, area)
+
+                        if key not in latest_map or date_int > latest_map[key][0]:
+                            latest_map[key] = (date_int, row.to_dict())
+
+                    print("    {} → 전체 {}건, 누적 매칭 {}건".format(
+                        ym, len(df), len(latest_map)))
+
+                print("    → 6개월 합계 {}건 조회, {}건 아파트(+면적) 최신 거래 추출".format(
+                    total_fetched, len(latest_map)))
+
+                for (apt_name, _area), (_date, trade_data) in latest_map.items():
                     trade_data["_region_code"] = code
                     trade_data["_region_name"] = region_name
                     trade_data["_trade_type"] = "아파트매매"
@@ -258,7 +289,6 @@ def main():
 
                     if not args.skip_geocode:
                         dong = trade_data.get("법정동", trade_data.get("umdNm", ""))
-                        apt_name = trade_data.get("아파트명", trade_data.get("aptNm", ""))
                         trade_addr = "{} {} {}".format(region_name, dong, apt_name)
                         coords = geocode(trade_addr)
                         if coords:
@@ -271,7 +301,7 @@ def main():
 
                     all_trades.append(trade_data)
 
-            print("  → 실거래가 총 {}건 (CSV 아파트만)".format(len(all_trades)))
+            print("  → 실거래가 총 {}건 (각 아파트+면적별 최신 거래)".format(len(all_trades)))
 
     # Firestore 업로드
     print(f"\n{'='*60}")
