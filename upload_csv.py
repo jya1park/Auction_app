@@ -323,8 +323,11 @@ def main():
                             date_int = 0
 
                         area = str(row.get("전용면적(㎡)", row.get("excluUseAr", ""))).strip()
-                        key = (trade_apt, area)
-                        trade_groups.setdefault(key, []).append((date_int, row.to_dict()))
+                        # 그룹 키는 매칭된 경매 아파트명 (좌표 캐시와 일치시키기 위함)
+                        key = (matched, area)
+                        row_dict = row.to_dict()
+                        row_dict["_matched_auction_apt"] = matched
+                        trade_groups.setdefault(key, []).append((date_int, row_dict))
                         matched_this_month += 1
 
                     print("    {} → 전체 {}건, 매칭 {}건".format(
