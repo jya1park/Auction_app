@@ -19,6 +19,8 @@ class AuctionCard extends StatelessWidget {
     final saleDate = data['매각기일']?.toString() ?? '-';
     final saleResult = (data['매각결과'] ?? '').toString();
     final discountRatio = data['할인율'];
+    final area = data['전용면적'];
+    final structure = (data['건물구조'] ?? '').toString();
     final tradeGroups = (data['실거래가목록'] is List)
         ? (data['실거래가목록'] as List)
         : <dynamic>[];
@@ -142,8 +144,14 @@ class AuctionCard extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 4),
-                  Text('매각기일: $saleDate · $itemType',
-                      style: TextStyle(fontSize: 11, color: colorScheme.outline)),
+                  Text(
+                    [
+                      '매각기일: $saleDate',
+                      itemType,
+                      if (area is num && area > 0) '${area}㎡',
+                    ].join(' · '),
+                    style: TextStyle(fontSize: 11, color: colorScheme.outline),
+                  ),
                 ],
               ),
             ),
