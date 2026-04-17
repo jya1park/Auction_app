@@ -40,32 +40,42 @@ class FirestoreService {
         .toList();
   }
 
-  /// 경매 데이터만 조회
+  /// 경매 데이터만 조회 (복합 인덱스 회피: 클라이언트에서 정렬)
   Future<List<Map<String, dynamic>>> getAuctions({int limit = 200}) async {
     final snapshot = await _db
         .collection('map_items')
         .where('_type', isEqualTo: 'auction')
-        .orderBy('_uploaded_at', descending: true)
         .limit(limit)
         .get();
 
-    return snapshot.docs
+    final items = snapshot.docs
         .map((doc) => {..._sanitizeDoc(doc.data()), 'id': doc.id})
         .toList();
+    items.sort((a, b) {
+      final at = (a['_uploaded_at'] ?? '').toString();
+      final bt = (b['_uploaded_at'] ?? '').toString();
+      return bt.compareTo(at);
+    });
+    return items;
   }
 
-  /// 실거래가 데이터만 조회
+  /// 실거래가 데이터만 조회 (복합 인덱스 회피)
   Future<List<Map<String, dynamic>>> getTrades({int limit = 200}) async {
     final snapshot = await _db
         .collection('map_items')
         .where('_type', isEqualTo: 'trade')
-        .orderBy('_uploaded_at', descending: true)
         .limit(limit)
         .get();
 
-    return snapshot.docs
+    final items = snapshot.docs
         .map((doc) => {..._sanitizeDoc(doc.data()), 'id': doc.id})
         .toList();
+    items.sort((a, b) {
+      final at = (a['_uploaded_at'] ?? '').toString();
+      final bt = (b['_uploaded_at'] ?? '').toString();
+      return bt.compareTo(at);
+    });
+    return items;
   }
 
   /// 업로드 로그
