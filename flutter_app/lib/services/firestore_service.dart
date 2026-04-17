@@ -1,5 +1,23 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+/// Firestore Timestamp → 문자열 등 JSON 인코딩 가능한 값으로 변환
+dynamic _sanitize(dynamic value) {
+  if (value is Timestamp) {
+    return value.toDate().toIso8601String();
+  }
+  if (value is Map) {
+    return value.map((k, v) => MapEntry(k.toString(), _sanitize(v)));
+  }
+  if (value is Iterable) {
+    return value.map(_sanitize).toList();
+  }
+  return value;
+}
+
+Map<String, dynamic> _sanitizeDoc(Map<String, dynamic> data) {
+  return data.map((k, v) => MapEntry(k, _sanitize(v)));
+}
+
 class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
@@ -13,7 +31,7 @@ class FirestoreService {
         .get();
 
     return snapshot.docs
-        .map((doc) => {...doc.data(), 'id': doc.id})
+        .map((doc) => {..._sanitizeDoc(doc.data()), 'id': doc.id})
         .where((item) {
           final lat = item['lat'];
           final lng = item['lng'];
@@ -31,7 +49,9 @@ class FirestoreService {
         .limit(limit)
         .get();
 
-    return snapshot.docs.map((doc) => {...doc.data(), 'id': doc.id}).toList();
+    return snapshot.docs
+        .map((doc) => {..._sanitizeDoc(doc.data()), 'id': doc.id})
+        .toList();
   }
 
   /// 실거래가 데이터만 조회
@@ -43,7 +63,9 @@ class FirestoreService {
         .limit(limit)
         .get();
 
-    return snapshot.docs.map((doc) => {...doc.data(), 'id': doc.id}).toList();
+    return snapshot.docs
+        .map((doc) => {..._sanitizeDoc(doc.data()), 'id': doc.id})
+        .toList();
   }
 
   /// 업로드 로그
@@ -54,6 +76,6 @@ class FirestoreService {
         .limit(limit)
         .get();
 
-    return snapshot.docs.map((doc) => doc.data()).toList();
+    return snapshot.docs.map((doc) => _sanitizeDoc(doc.data())).toList();
   }
 }
