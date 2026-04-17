@@ -19,7 +19,7 @@ from datetime import datetime
 
 from google.cloud import firestore
 
-from src.config import TRADE_FIELDS
+from src.config import TRADE_FIELDS, OFFICETEL_TRADE_FIELDS
 from src.csv_parser import parse_csv
 from src.geocoder import geocode
 from src.matcher import extract_region_from_address
@@ -318,17 +318,12 @@ def main():
                 matched_target_apts = set()  # 매칭된 CSV 아파트명
                 sample_unmatched = {}  # 샘플: 매칭 안된 실거래가 아파트명 (최대 10개)
 
-                for ym in months_to_fetch:
-                    df = trade_scraper._fetch("아파트매매", code, ym, TRADE_FIELDS)
-                    if df.empty:
-                        print("    {} → 0건".format(ym))
-                        continue
-                    total_fetched += len(df)
-
-                    matched_this_month = 0
+                def _process_df(df, target_set, trade_type):
+                    """dataframe의 각 행을 매칭해서 trade_groups에 추가. 매칭 수 반환"""
+                    count = 0
                     for _, row in df.iterrows():
-                        trade_apt = str(row.get("아파트명", row.get("aptNm", ""))).strip()
-                        matched = _find_matching_target(trade_apt, apt_names)
+                        trade_apt = str(row.get("아파트명", row.get("aptNm", row.get("offiNm", "")))).strip()
+                        matched = _find_matching_target(trade_apt, target_set)
                         if not matched:
                             if trade_apt and len(sample_unmatched) < 10:
                                 sample_unmatched[trade_apt] = True
@@ -344,15 +339,31 @@ def main():
                             date_int = 0
 
                         area = str(row.get("전용면적(㎡)", row.get("excluUseAr", ""))).strip()
-                        # 그룹 키는 매칭된 경매 아파트명 (좌표 캐시와 일치시키기 위함)
                         key = (matched, area)
                         row_dict = row.to_dict()
                         row_dict["_matched_auction_apt"] = matched
+                        row_dict["_trade_type"] = trade_type
                         trade_groups.setdefault(key, []).append((date_int, row_dict))
-                        matched_this_month += 1
+                        count += 1
+                    return count
 
-                    print("    {} → 전체 {}건, 매칭 {}건".format(
-                        ym, len(df), matched_this_month))
+                for ym in months_to_fetch:
+                    # 1) 아파트매매
+                    df_apt = trade_scraper._fetch("아파트매매", code, ym, TRADE_FIELDS)
+                    apt_total = len(df_apt) if not df_apt.empty else 0
+                    apt_matched = _process_df(df_apt, apt_names, "아파트매매") if apt_total else 0
+
+                    # 2) 오피스텔매매 (파크앤시티타워 같은 물건 커버)
+                    df_offi = trade_scraper._fetch("오피스텔매매", code, ym, OFFICETEL_TRADE_FIELDS)
+                    offi_total = len(df_offi) if not df_offi.empty else 0
+                    offi_matched = _process_df(df_offi, apt_names, "오피스텔매매") if offi_total else 0
+
+                    total_fetched += apt_total + offi_total
+                    if apt_total == 0 and offi_total == 0:
+                        print("    {} → 0건".format(ym))
+                    else:
+                        print("    {} → 아파트 {}건({}매칭) / 오피스텔 {}건({}매칭)".format(
+                            ym, apt_total, apt_matched, offi_total, offi_matched))
 
                 print("    → 6개월 합계 {}건 조회, {}건 아파트(+면적) 그룹".format(
                     total_fetched, len(trade_groups)))
@@ -360,38 +371,20 @@ def main():
                 # 하이브리드: 미매칭이 있으면 추가 6개월(7~12개월 전) 확장 조회
                 unmatched_targets = apt_names - matched_target_apts
                 if unmatched_targets and extension_months:
-                    print("    [확장] 미매칭 {}건 추가 조회 (7~12개월 전)".format(
+                    print("    [확장] 미매칭 {}건 추가 조회 (7~12개월 전, 아파트+오피스텔)".format(
                         len(unmatched_targets)))
                     ext_matched_count = 0
                     for ym in extension_months:
-                        df = trade_scraper._fetch(
+                        df_apt = trade_scraper._fetch(
                             "아파트매매", code, ym, TRADE_FIELDS)
-                        if df.empty:
-                            continue
-
-                        for _, row in df.iterrows():
-                            trade_apt = str(row.get("아파트명", row.get("aptNm", ""))).strip()
-                            # 미매칭 아파트만 검색
-                            matched = _find_matching_target(trade_apt, unmatched_targets)
-                            if not matched:
-                                continue
-
-                            matched_target_apts.add(matched)
-                            ext_matched_count += 1
-
-                            try:
-                                yy = int(row.get("년", row.get("dealYear", 0)))
-                                mm = int(row.get("월", row.get("dealMonth", 0)))
-                                dd = int(row.get("일", row.get("dealDay", 0)))
-                                date_int = yy * 10000 + mm * 100 + dd
-                            except (ValueError, TypeError):
-                                date_int = 0
-
-                            area = str(row.get("전용면적(㎡)", row.get("excluUseAr", ""))).strip()
-                            key = (matched, area)
-                            row_dict = row.to_dict()
-                            row_dict["_matched_auction_apt"] = matched
-                            trade_groups.setdefault(key, []).append((date_int, row_dict))
+                        if not df_apt.empty:
+                            ext_matched_count += _process_df(
+                                df_apt, unmatched_targets, "아파트매매")
+                        df_offi = trade_scraper._fetch(
+                            "오피스텔매매", code, ym, OFFICETEL_TRADE_FIELDS)
+                        if not df_offi.empty:
+                            ext_matched_count += _process_df(
+                                df_offi, unmatched_targets, "오피스텔매매")
 
                     new_matched = matched_target_apts - (apt_names - unmatched_targets)
                     print("    [확장] → 추가 매칭 {}건, 아파트 {}개 구제".format(

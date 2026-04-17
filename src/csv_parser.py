@@ -67,10 +67,44 @@ def parse_location(raw):
         # 괄호 제거
         text = text[:paren_match.start()].strip()
 
-    # 3) 남은 텍스트가 주소
+    # 3) 괄호가 없거나 아파트명을 못 찾은 경우, 주소에서 추출 시도
+    #    예: "경기도 수원시 영통구 하동 1001 광교 더 포레스트 4008동 25층2501호"
+    #         → 아파트명: "광교 더 포레스트"
+    if not result["아파트명"] and text:
+        extracted = _extract_apt_from_address(text)
+        if extracted:
+            result["아파트명"] = extracted
+
+    # 4) 남은 텍스트가 주소
     result["주소"] = text
 
     return result
+
+
+def _extract_apt_from_address(address):
+    """
+    소재지 문자열에서 아파트명 추출 (괄호 없이 임베드된 경우)
+
+    패턴: ... 지번 [아파트명] N동 N층NNN호
+    예시:
+      - "하동 1001 광교 더 포레스트 4008동 25층2501호" → "광교 더 포레스트"
+      - "동백동 574 호수마을월드메르디앙 1606동 3층302호" → "호수마을월드메르디앙"
+      - "상현로 2 4704동 5층501호" → "" (지번 뒤에 바로 동번호)
+    """
+    # "지번숫자 [아파트명] N동" 패턴
+    # 지번 뒤 공백 + 아파트명 + 공백 + "NNN동"
+    m = re.search(
+        r'(?:\d+(?:-\d+)?)\s+([가-힣A-Za-z0-9\s·\']+?)\s+\d+동\s',
+        address + " ",
+    )
+    if m:
+        candidate = m.group(1).strip()
+        # 너무 짧거나 숫자만이면 제외
+        if len(candidate) >= 2 and not candidate.replace(' ', '').isdigit():
+            # '동', '읍', '면'으로 끝나면 법정동일 가능성 → 제외
+            if not re.match(r'^\S+[동읍면리]$', candidate):
+                return candidate
+    return ""
 
 
 def parse_sale_date(raw: str) -> str:

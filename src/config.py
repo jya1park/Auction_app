@@ -38,6 +38,25 @@ TRADE_FIELDS = {
     "slerGbn": "매도자유형",
 }
 
+# 오피스텔 매매 필드 (offiNm을 아파트명 컬럼에 매핑해서 통일)
+OFFICETEL_TRADE_FIELDS = {
+    "dealAmount": "거래금액(만원)",
+    "dealingGbn": "거래유형",
+    "buildYear": "건축년도",
+    "dealYear": "년",
+    "dealMonth": "월",
+    "dealDay": "일",
+    "umdNm": "법정동",
+    "offiNm": "아파트명",
+    "excluUseAr": "전용면적(㎡)",
+    "jibun": "지번",
+    "floor": "층",
+    "sggCd": "시군구코드",
+    "rgstDate": "등기일자",
+    "buyerGbn": "매수자유형",
+    "slerGbn": "매도자유형",
+}
+
 # 전월세 거래 응답 필드 매핑
 RENT_FIELDS = {
     "deposit": "보증금(만원)",
