@@ -37,14 +37,24 @@ def get_db():
 
 
 def get_data_go_kr_key():
-    env_path = os.path.join(os.path.dirname(__file__), ".env")
+    # 1) 환경변수 우선
+    key = os.environ.get("DATA_GO_KR_API_KEY")
+    if key:
+        return key
+    # 2) 프로젝트 루트의 .env 파일
+    env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
     if os.path.exists(env_path):
         with open(env_path, encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
                 if line.startswith("DATA_GO_KR_API_KEY="):
-                    return line.split("=", 1)[1].strip().strip("\"'")
-    return os.environ.get("DATA_GO_KR_API_KEY", "")
+                    val = line.split("=", 1)[1].strip().strip("\"'")
+                    if val:
+                        return val
+        print(f"  [정보] {env_path} 파일은 있지만 DATA_GO_KR_API_KEY가 없습니다")
+    else:
+        print(f"  [정보] .env 파일을 찾지 못했습니다: {env_path}")
+    return ""
 
 
 def batch_upload(db, collection_name, docs, batch_size=400):
@@ -77,6 +87,8 @@ def main():
                         help="좌표 변환 생략 (오래 걸림 방지)")
     parser.add_argument("--limit", type=int, default=0,
                         help="처음 N건만 처리 (테스트용)")
+    parser.add_argument("--api-key", default="",
+                        help="data.go.kr API 키 (환경변수/.env 대신 직접 전달)")
     args = parser.parse_args()
 
     # CSV 파싱
@@ -150,9 +162,11 @@ def main():
         print(f"[3/4] 실거래가 매칭 ({len(region_codes_found)}개 지역)")
         print(f"{'='*60}")
 
-        service_key = get_data_go_kr_key()
+        service_key = args.api_key or get_data_go_kr_key()
         if not service_key:
             print("  [경고] DATA_GO_KR_API_KEY가 없어 실거래가 매칭을 생략합니다")
+            print("  해결: .env 파일에 'DATA_GO_KR_API_KEY=...' 추가")
+            print("        또는 --api-key 옵션으로 전달")
         else:
             trade_scraper = RealEstateScraper(service_key)
             # 기준 월: 가장 많은 경매 건의 매각년월 중 이전달
