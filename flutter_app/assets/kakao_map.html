@@ -48,8 +48,8 @@ var map;
 var markers = [];
 var infoWindows = [];
 var currentInfoWindow = null;
-var showAuction = true;
-var showTrade = true;
+var showSold = true;
+var showUnsold = true;
 var allItems = [];
 
 // 지도 초기화
@@ -103,8 +103,8 @@ function loadMarkers(jsonStr) {
 
 // 필터 토글 (Flutter에서 호출)
 function setFilter(type, visible) {
-  if (type === 'auction') showAuction = visible;
-  if (type === 'trade') showTrade = visible;
+  if (type === 'sold') showSold = visible;
+  if (type === 'unsold') showUnsold = visible;
   renderMarkers();
 }
 
@@ -117,15 +117,17 @@ function renderMarkers() {
 
   allItems.forEach(function(item) {
     if (!item.lat || item.lat === 0) return;
-    var type = item._type || '';
-    if (type === 'auction' && !showAuction) return;
-    if (type === 'trade' && !showTrade) return;
 
-    var isAuction = (type === 'auction');
+    // 필터: 매각/유찰
+    var result = item['매각결과'] || '';
+    var isSold = (result === '매각');
+    if (isSold && !showSold) return;
+    if (!isSold && !showUnsold) return;
+
     var position = new kakao.maps.LatLng(item.lat, item.lng);
 
-    // 마커 이미지
-    var imageSrc = isAuction
+    // 마커 이미지: 매각=초록별, 유찰=주황별
+    var imageSrc = isSold
       ? 'https://t1.daumcdn.net/localimg/localimages/07/mapapidoc/markerStar.png'
       : 'https://t1.daumcdn.net/localimg/localimages/07/2018/pc/img/marker_spot.png';
     var imageSize = new kakao.maps.Size(24, 35);
@@ -137,8 +139,7 @@ function renderMarkers() {
       map: map
     });
 
-    // 인포윈도우 내용
-    var content = buildInfoContent(item, isAuction);
+    var content = buildInfoContent(item, true);
     var infoWindow = new kakao.maps.InfoWindow({ content: content });
 
     kakao.maps.event.addListener(marker, 'click', function() {

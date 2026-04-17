@@ -23,8 +23,8 @@ class _MapScreenState extends State<MapScreen> {
   List<Map<String, dynamic>> _items = [];
   bool _isLoading = true;
   bool _mapReady = false;
-  bool _showAuction = true;
-  bool _showTrade = true;
+  bool _showSold = true;
+  bool _showUnsold = true;
 
   // .env에서 읽을 수도 있지만, 빌드 시 교체됨
   static const _kakaoJsKey = String.fromEnvironment(
@@ -124,8 +124,8 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   void _toggleFilter(String type, bool value) {
-    if (type == 'auction') _showAuction = value;
-    if (type == 'trade') _showTrade = value;
+    if (type == 'sold') _showSold = value;
+    if (type == 'unsold') _showUnsold = value;
     setState(() {});
     _webController.runJavaScript("setFilter('$type', $value)");
   }
@@ -143,8 +143,8 @@ class _MapScreenState extends State<MapScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final auctionCount = _items.where((i) => i['_type'] == 'auction').length;
-    final tradeCount = _items.where((i) => i['_type'] == 'trade').length;
+    final soldCount = _items.where((i) => i['매각결과'] == '매각').length;
+    final unsoldCount = _items.where((i) => i['매각결과'] == '유찰').length;
 
     return Scaffold(
       appBar: AppBar(
@@ -158,14 +158,12 @@ class _MapScreenState extends State<MapScreen> {
       ),
       body: Stack(
         children: [
-          // 카카오맵 WebView
           WebViewWidget(controller: _webController),
 
-          // 로딩
           if (_isLoading)
             const Center(child: CircularProgressIndicator()),
 
-          // 필터 칩 (상단)
+          // 필터: 매각 / 유찰
           Positioned(
             top: 8,
             left: 12,
@@ -181,24 +179,24 @@ class _MapScreenState extends State<MapScreen> {
                   children: [
                     FilterChip(
                       avatar: CircleAvatar(
-                        backgroundColor: Colors.orange.shade600,
+                        backgroundColor: Colors.green.shade600,
                         radius: 6,
                       ),
-                      label: Text('경매 $auctionCount',
+                      label: Text('매각 $soldCount',
                           style: const TextStyle(fontSize: 13)),
-                      selected: _showAuction,
-                      onSelected: (v) => _toggleFilter('auction', v),
+                      selected: _showSold,
+                      onSelected: (v) => _toggleFilter('sold', v),
                     ),
                     const SizedBox(width: 8),
                     FilterChip(
                       avatar: CircleAvatar(
-                        backgroundColor: Colors.blue.shade600,
+                        backgroundColor: Colors.orange.shade600,
                         radius: 6,
                       ),
-                      label: Text('실거래가 $tradeCount',
+                      label: Text('유찰 $unsoldCount',
                           style: const TextStyle(fontSize: 13)),
-                      selected: _showTrade,
-                      onSelected: (v) => _toggleFilter('trade', v),
+                      selected: _showUnsold,
+                      onSelected: (v) => _toggleFilter('unsold', v),
                     ),
                   ],
                 ),
