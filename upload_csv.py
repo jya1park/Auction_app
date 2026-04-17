@@ -29,6 +29,36 @@ from src.scraper import RealEstateScraper
 FIREBASE_KEY_PATH = os.path.join(os.path.dirname(__file__), "firebase-key.json")
 
 
+def _normalize_apt_name(name):
+    """아파트명 정규화: 공백/특수문자 제거, 흔한 접미사 통일"""
+    import re as _re
+    s = _re.sub(r'[\s\-_·()（）]', '', name)
+    s = s.replace("아파트", "").replace("APT", "")
+    return s
+
+
+def _match_apt_name(trade_apt, target_set):
+    """
+    실거래가 아파트명이 CSV 아파트명 목록과 매칭되는지 확인
+    - 정확 일치
+    - 정규화 후 일치
+    - 부분 포함 (한쪽이 다른쪽에 포함)
+    """
+    if not trade_apt:
+        return False
+    trade_norm = _normalize_apt_name(trade_apt)
+    for target in target_set:
+        if trade_apt == target:
+            return True
+        target_norm = _normalize_apt_name(target)
+        if trade_norm == target_norm:
+            return True
+        if len(trade_norm) >= 3 and len(target_norm) >= 3:
+            if trade_norm in target_norm or target_norm in trade_norm:
+                return True
+    return False
+
+
 def get_db():
     if not os.path.exists(FIREBASE_KEY_PATH):
         print("[오류] firebase-key.json 파일이 없습니다. 프로젝트 루트에 배치하세요.")
@@ -155,7 +185,7 @@ def main():
         valid = [a for a in auction_items if a.get("lat", 0) != 0]
         print(f"  → {len(valid)}/{len(auction_items)}건 좌표 변환 성공")
 
-    # 실거래가 매칭
+    # 실거래가 매칭 — CSV에 있는 아파트만 필터링
     all_trades = []
     if not args.skip_trade and region_codes_found:
         print(f"\n{'='*60}")
@@ -169,43 +199,67 @@ def main():
             print("        또는 --api-key 옵션으로 전달")
         else:
             trade_scraper = RealEstateScraper(service_key)
-            # 기준 월: 가장 많은 경매 건의 매각년월 중 이전달
-            year_month = datetime.now().strftime("%Y%m")
-            # 지난 달로 조회 (데이터 지연 고려)
             now = datetime.now()
             prev_month = now.month - 1 if now.month > 1 else 12
             prev_year = now.year if now.month > 1 else now.year - 1
-            year_month = f"{prev_year:04d}{prev_month:02d}"
+            year_month = "{:04d}{:02d}".format(prev_year, prev_month)
 
-            print(f"  기준 월: {year_month}")
+            print("  기준 월: {}".format(year_month))
+
+            # CSV에서 지역별 아파트명 목록 수집
+            target_apts = {}  # {region_code: set(아파트명)}
+            for item in auction_items:
+                code = item.get("_region_code", "")
+                apt = item.get("아파트명", "").strip()
+                if code and apt:
+                    target_apts.setdefault(code, set()).add(apt)
+
+            print("  매칭 대상 아파트:")
+            for code, apts in target_apts.items():
+                print("    {} → {}".format(code, ", ".join(sorted(apts)[:5])))
+                if len(apts) > 5:
+                    print("         ... 외 {}개".format(len(apts) - 5))
 
             for code in region_codes_found:
                 region_name = code
                 for r in search_region(code):
-                    region_name = f"{r[0]} {r[1]}"
+                    region_name = "{} {}".format(r[0], r[1])
                     break
 
-                print(f"  {region_name} ({code}) 조회 중...")
+                apt_names = target_apts.get(code, set())
+                if not apt_names:
+                    print("  {} ({}) → 매칭할 아파트명 없음, 건너뜀".format(region_name, code))
+                    continue
+
+                print("  {} ({}) 조회 중...".format(region_name, code))
                 df = trade_scraper._fetch("아파트매매", code, year_month, TRADE_FIELDS)
 
                 if df.empty:
-                    print(f"    → 0건")
+                    print("    → 0건")
                     continue
 
-                print(f"    → {len(df)}건")
+                total = len(df)
 
+                # CSV 아파트명과 매칭되는 실거래가만 필터링
+                matched_rows = []
                 for _, row in df.iterrows():
+                    trade_apt = str(row.get("아파트명", row.get("aptNm", ""))).strip()
+                    if _match_apt_name(trade_apt, apt_names):
+                        matched_rows.append(row)
+
+                print("    → 전체 {}건 중 {}건 매칭".format(total, len(matched_rows)))
+
+                for row in matched_rows:
                     trade_data = row.to_dict()
                     trade_data["_region_code"] = code
                     trade_data["_region_name"] = region_name
                     trade_data["_trade_type"] = "아파트매매"
                     trade_data["_type"] = "trade"
 
-                    # 좌표 변환
                     if not args.skip_geocode:
                         dong = trade_data.get("법정동", trade_data.get("umdNm", ""))
                         apt_name = trade_data.get("아파트명", trade_data.get("aptNm", ""))
-                        trade_addr = f"{region_name} {dong} {apt_name}"
+                        trade_addr = "{} {} {}".format(region_name, dong, apt_name)
                         coords = geocode(trade_addr)
                         if coords:
                             trade_data["lat"] = coords["lat"]
@@ -217,7 +271,7 @@ def main():
 
                     all_trades.append(trade_data)
 
-            print(f"  → 실거래가 총 {len(all_trades)}건")
+            print("  → 실거래가 총 {}건 (CSV 아파트만)".format(len(all_trades)))
 
     # Firestore 업로드
     print(f"\n{'='*60}")
