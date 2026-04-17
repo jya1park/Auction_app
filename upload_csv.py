@@ -173,6 +173,8 @@ def main():
                         help="data.go.kr API 키 (환경변수/.env 대신 직접 전달)")
     parser.add_argument("--months", type=int, default=6,
                         help="실거래가 조회 개월 수 (기본 6개월, 각 아파트의 최신 거래만 업로드)")
+    parser.add_argument("--clear", action="store_true",
+                        help="업로드 전 map_items 컬렉션 전체 삭제 (중복 방지)")
     args = parser.parse_args()
 
     # CSV 파싱
@@ -546,6 +548,25 @@ def main():
     print(f"{'='*60}")
 
     db = get_db()
+
+    # --clear 옵션: 기존 map_items 전체 삭제
+    if args.clear:
+        print("  [정리] 기존 map_items 컬렉션 삭제 중...")
+        collection_ref = db.collection("map_items")
+        deleted = 0
+        while True:
+            docs = list(collection_ref.limit(400).stream())
+            if not docs:
+                break
+            batch = db.batch()
+            for doc in docs:
+                batch.delete(doc.reference)
+            batch.commit()
+            deleted += len(docs)
+            print(f"    {deleted}건 삭제됨...")
+            if len(docs) < 400:
+                break
+        print(f"  → 총 {deleted}건 삭제 완료")
 
     # 경매 데이터 타입 지정
     for item in auction_items:
