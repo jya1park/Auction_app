@@ -132,12 +132,12 @@ class TradeCard extends StatelessWidget {
     if (num == null) return raw;
 
     if (num >= 10000) {
-      final억 = num ~/ 10000;
-      final 만 = num % 10000;
-      if (만 > 0) {
-        return '$억억 ${_numberFormat(만)}만원';
+      final eok = num ~/ 10000;
+      final man = num % 10000;
+      if (man > 0) {
+        return '$eok억 ${_numberFormat(man)}만원';
       }
-      return '$억억원';
+      return '$eok억원';
     }
     return '${_numberFormat(num)}만원';
   }

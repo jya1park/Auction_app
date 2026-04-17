@@ -204,9 +204,11 @@ class DetailSheet extends StatelessWidget {
     if (n == 0) return '-';
     // 원 단위 → 억/만원 단위 변환
     if (n >= 100000000) {
-      final 억 = n ~/ 100000000;
-      final 만 = (n % 100000000) ~/ 10000;
-      return 만 > 0 ? '$억억 ${_numberFormat(만.toInt())}만원' : '$억억원';
+      final eok = n ~/ 100000000;
+      final man = (n % 100000000) ~/ 10000;
+      return man > 0
+          ? '$eok억 ${_numberFormat(man.toInt())}만원'
+          : '$eok억원';
     } else if (n >= 10000) {
       return '${_numberFormat((n ~/ 10000).toInt())}만원';
     }
@@ -387,9 +389,9 @@ class DetailSheet extends StatelessWidget {
     final n = int.tryParse(cleaned);
     if (n == null) return raw;
     if (n >= 10000) {
-      final 억 = n ~/ 10000;
-      final 만 = n % 10000;
-      return 만 > 0 ? '$억억 $만만원' : '$억억원';
+      final eok = n ~/ 10000;
+      final man = n % 10000;
+      return man > 0 ? '$eok억 $man만원' : '$eok억원';
     }
     return '$n만원';
   }
