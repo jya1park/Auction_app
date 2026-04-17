@@ -179,6 +179,11 @@ class DetailSheet extends StatelessWidget {
           ),
         ),
       ),
+      const SizedBox(height: 12),
+
+      // 실거래가 섹션 (있으면)
+      ..._buildEmbeddedTrades(cs),
+
       const SizedBox(height: 8),
       _infoTile(Icons.gavel, '사건번호', data['사건번호']?.toString() ?? '-'),
       _infoTile(Icons.location_on, '소재지', address),
@@ -189,6 +194,110 @@ class DetailSheet extends StatelessWidget {
       _infoTile(Icons.event, '매각기일', saleDate),
       if (note.isNotEmpty) _infoTile(Icons.info_outline, '비고', note),
     ];
+  }
+
+  List<Widget> _buildEmbeddedTrades(ColorScheme cs) {
+    final raw = data['실거래가목록'];
+    if (raw is! List || raw.isEmpty) return const [];
+
+    final widgets = <Widget>[];
+    widgets.add(Card(
+      color: Colors.blue.shade50,
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.timeline, size: 16, color: Colors.blue.shade900),
+                const SizedBox(width: 6),
+                Text('이 아파트 실거래가 (최근 6개월)',
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.blue.shade900)),
+              ],
+            ),
+            const SizedBox(height: 10),
+            ..._buildEmbeddedTradeRows(raw, cs),
+          ],
+        ),
+      ),
+    ));
+    return widgets;
+  }
+
+  List<Widget> _buildEmbeddedTradeRows(List<dynamic> groups, ColorScheme cs) {
+    final widgets = <Widget>[];
+    for (final g in groups) {
+      final group = g as Map<dynamic, dynamic>;
+      final area = (group['전용면적'] ?? '').toString();
+      final count = group['거래건수_6개월'] ?? 0;
+      final trades = (group['최근거래'] is List)
+          ? group['최근거래'] as List<dynamic>
+          : <dynamic>[];
+      if (trades.isEmpty) continue;
+
+      widgets.add(Padding(
+        padding: const EdgeInsets.only(top: 6, bottom: 4),
+        child: Row(
+          children: [
+            Text(area.isNotEmpty ? '${area}㎡' : '거래내역',
+                style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: cs.outline)),
+            const SizedBox(width: 6),
+            Text('· $count건',
+                style: TextStyle(fontSize: 11, color: cs.outline)),
+          ],
+        ),
+      ));
+
+      for (var i = 0; i < trades.length; i++) {
+        final t = trades[i] as Map<dynamic, dynamic>;
+        final price = (t['거래금액'] ?? '').toString();
+        final y = t['년'] ?? '';
+        final m = t['월'] ?? '';
+        final floor = (t['층'] ?? '').toString();
+        final isLatest = i == 0;
+        widgets.add(Padding(
+          padding: const EdgeInsets.symmetric(vertical: 3),
+          child: Row(
+            children: [
+              Container(
+                width: 50,
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                decoration: BoxDecoration(
+                  color: isLatest ? Colors.blue.shade700 : Colors.white,
+                  border: Border.all(color: Colors.blue.shade200),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text('$y.$m',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: isLatest ? Colors.white : Colors.blue.shade900)),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(_formatPrice(price),
+                    style: TextStyle(
+                        fontSize: isLatest ? 16 : 14,
+                        fontWeight: FontWeight.w800,
+                        color: isLatest ? Colors.blue.shade900 : cs.onSurface)),
+              ),
+              if (floor.isNotEmpty)
+                Text('${floor}층',
+                    style: TextStyle(fontSize: 11, color: cs.outline)),
+            ],
+          ),
+        ));
+      }
+    }
+    return widgets;
   }
 
   String _formatWon(dynamic raw) {

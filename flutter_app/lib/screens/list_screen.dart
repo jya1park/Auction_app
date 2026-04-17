@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../services/firestore_service.dart';
-import '../widgets/trade_card.dart';
 import '../widgets/auction_card.dart';
 
 class ListScreen extends StatefulWidget {
@@ -10,32 +9,24 @@ class ListScreen extends StatefulWidget {
   State<ListScreen> createState() => _ListScreenState();
 }
 
-class _ListScreenState extends State<ListScreen> with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+class _ListScreenState extends State<ListScreen> {
   final FirestoreService _service = FirestoreService();
 
-  List<Map<String, dynamic>> _auctions = [];
-  List<Map<String, dynamic>> _trades = [];
+  List<Map<String, dynamic>> _items = [];
   bool _isLoading = false;
+  String _filter = 'all'; // all, sold, unsold, has_trade
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
-    _loadAll();
+    _load();
   }
 
-  Future<void> _loadAll() async {
+  Future<void> _load() async {
     setState(() => _isLoading = true);
     try {
-      final results = await Future.wait([
-        _service.getAuctions(),
-        _service.getTrades(),
-      ]);
-      setState(() {
-        _auctions = results[0];
-        _trades = results[1];
-      });
+      final auctions = await _service.getAuctions(limit: 500);
+      setState(() => _items = auctions);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -47,73 +38,99 @@ class _ListScreenState extends State<ListScreen> with SingleTickerProviderStateM
     }
   }
 
+  List<Map<String, dynamic>> get _filtered {
+    switch (_filter) {
+      case 'sold':
+        return _items.where((i) => i['매각결과'] == '매각').toList();
+      case 'unsold':
+        return _items.where((i) => i['매각결과'] == '유찰').toList();
+      case 'has_trade':
+        return _items.where((i) {
+          final list = i['실거래가목록'];
+          return list is List && list.isNotEmpty;
+        }).toList();
+      default:
+        return _items;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final filtered = _filtered;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('목록'),
-        bottom: TabBar(
-          controller: _tabController,
-          tabs: [
-            Tab(text: '경매 (${_auctions.length})'),
-            Tab(text: '실거래가 (${_trades.length})'),
-          ],
-        ),
+        title: const Text('아파트 목록'),
         actions: [
-          IconButton(icon: const Icon(Icons.refresh), onPressed: _loadAll),
+          IconButton(icon: const Icon(Icons.refresh), onPressed: _load),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : TabBarView(
-              controller: _tabController,
-              children: [
-                // 경매 탭
-                _auctions.isEmpty
-                    ? _emptyState('경매 데이터가 없습니다')
-                    : RefreshIndicator(
-                        onRefresh: _loadAll,
-                        child: ListView.builder(
-                          padding: const EdgeInsets.all(16),
-                          itemCount: _auctions.length,
-                          itemBuilder: (_, i) => AuctionCard(data: _auctions[i]),
-                        ),
-                      ),
-                // 실거래가 탭
-                _trades.isEmpty
-                    ? _emptyState('실거래가 데이터가 없습니다')
-                    : RefreshIndicator(
-                        onRefresh: _loadAll,
-                        child: ListView.builder(
-                          padding: const EdgeInsets.all(16),
-                          itemCount: _trades.length,
-                          itemBuilder: (_, i) => TradeCard(data: _trades[i]),
-                        ),
-                      ),
-              ],
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _filterChip('전체 (${_items.length})', 'all'),
+                  const SizedBox(width: 6),
+                  _filterChip(
+                      '매각 (${_items.where((i) => i['매각결과'] == '매각').length})',
+                      'sold'),
+                  const SizedBox(width: 6),
+                  _filterChip(
+                      '유찰 (${_items.where((i) => i['매각결과'] == '유찰').length})',
+                      'unsold'),
+                  const SizedBox(width: 6),
+                  _filterChip(
+                      '실거래가 있음 (${_items.where((i) => (i['실거래가목록'] is List) && (i['실거래가목록'] as List).isNotEmpty).length})',
+                      'has_trade'),
+                ],
+              ),
             ),
+          ),
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : filtered.isEmpty
+                    ? _emptyState()
+                    : RefreshIndicator(
+                        onRefresh: _load,
+                        child: ListView.builder(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          itemCount: filtered.length,
+                          itemBuilder: (_, i) =>
+                              AuctionCard(data: filtered[i]),
+                        ),
+                      ),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _emptyState(String msg) {
+  Widget _filterChip(String label, String value) {
+    return ChoiceChip(
+      label: Text(label, style: const TextStyle(fontSize: 12)),
+      selected: _filter == value,
+      onSelected: (_) => setState(() => _filter = value),
+    );
+  }
+
+  Widget _emptyState() {
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           const Icon(Icons.inbox_outlined, size: 64, color: Colors.grey),
           const SizedBox(height: 12),
-          Text(msg, style: const TextStyle(color: Colors.grey, fontSize: 16)),
+          const Text('해당 조건의 데이터가 없습니다',
+              style: TextStyle(color: Colors.grey, fontSize: 16)),
           const SizedBox(height: 4),
-          const Text('PC에서 upload.py run으로 데이터를 업로드하세요',
+          const Text('PC에서 python upload_csv.py 로 데이터를 업로드하세요',
               style: TextStyle(color: Colors.grey, fontSize: 13)),
         ],
       ),
     );
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
   }
 }

@@ -349,6 +349,38 @@ def main():
             print("    좌표 출처: 경매캐시 {}건, geocode {}건, 실패 {}건".format(
                 cache_count, geo_count, fail_count))
 
+    # 실거래가를 경매 데이터에 임베드 (한 아파트 = 한 마커)
+    print(f"\n{'='*60}")
+    print(f"[3.5/4] 실거래가를 경매 데이터에 임베드")
+    print(f"{'='*60}")
+
+    trade_lookup = {}  # normalized_apt → list of {전용면적, 최근거래, 거래건수}
+    for trade in all_trades:
+        apt = trade.get("아파트명", trade.get("aptNm", ""))
+        if not apt:
+            continue
+        norm = _normalize_apt_name(apt)
+        trade_lookup.setdefault(norm, []).append({
+            "전용면적": str(trade.get("전용면적(㎡)", trade.get("excluUseAr", ""))),
+            "최근거래": trade.get("최근거래", []),
+            "거래건수_6개월": trade.get("거래건수_6개월", 0),
+        })
+
+    attached_count = 0
+    for auction in auction_items:
+        apt = auction.get("아파트명", "")
+        if not apt:
+            auction["실거래가목록"] = []
+            continue
+        norm = _normalize_apt_name(apt)
+        groups = trade_lookup.get(norm, [])
+        auction["실거래가목록"] = groups
+        if groups:
+            attached_count += 1
+
+    print("  → 경매 {}건 중 {}건에 실거래가 첨부됨".format(
+        len(auction_items), attached_count))
+
     # Firestore 업로드
     print(f"\n{'='*60}")
     print(f"[4/4] Firestore 업로드")
@@ -361,10 +393,12 @@ def main():
         item["_type"] = "auction"
         item["_source"] = "courtauction_csv"
 
-    print(f"  경매 {len(auction_items)}건 업로드 중...")
+    print(f"  경매 {len(auction_items)}건 업로드 중 (실거래가 임베드됨)...")
     auction_count = batch_upload(db, "map_items", auction_items)
 
-    if all_trades:
+    # 실거래가는 별도 마커로 업로드하지 않음 (경매에 임베드되어 있음)
+    trade_count = 0
+    if False and all_trades:
         print(f"  실거래가 {len(all_trades)}건 업로드 중...")
         trade_count = batch_upload(db, "map_items", all_trades)
     else:

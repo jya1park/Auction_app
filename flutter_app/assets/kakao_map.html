@@ -165,6 +165,32 @@ function buildInfoContent(item, isAuction) {
     var resultBadge = result === '매각'
       ? '<span style="background:#dcfce7;color:#166534;padding:1px 6px;border-radius:4px;font-size:11px;font-weight:700;">매각</span>'
       : result === '유찰' ? '<span style="background:#fff7ed;color:#9a3412;padding:1px 6px;border-radius:4px;font-size:11px;font-weight:700;">유찰</span>' : '';
+
+    // 실거래가 요약 (가장 최근 1건만 표시)
+    var tradeHtml = '';
+    var tradeGroups = item['실거래가목록'] || [];
+    if (tradeGroups.length > 0) {
+      var latestTrade = null;
+      var latestArea = '';
+      for (var i = 0; i < tradeGroups.length; i++) {
+        var g = tradeGroups[i];
+        var trades = g['최근거래'] || [];
+        if (trades.length > 0) {
+          var t = trades[0]; // 정렬되어 있음
+          if (!latestTrade || (t['년'] * 100 + t['월']) > (latestTrade['년'] * 100 + latestTrade['월'])) {
+            latestTrade = t;
+            latestArea = g['전용면적'] || '';
+          }
+        }
+      }
+      if (latestTrade) {
+        tradeHtml = '<div style="margin-top:6px;padding-top:6px;border-top:1px dashed #cbd5e1;">'
+          + '<div style="font-size:11px;color:#1e40af;font-weight:700;">실거래가 ' + latestTrade['년'] + '.' + latestTrade['월'] + (latestArea ? ' (' + latestArea + '㎡)' : '') + '</div>'
+          + '<div style="font-size:14px;font-weight:800;color:#1e40af;">' + formatWon10k(latestTrade['거래금액']) + '</div>'
+          + '</div>';
+      }
+    }
+
     return '<div class="info-window info-auction">'
       + '<span class="info-badge badge-auction">경매</span> ' + resultBadge
       + '<div class="info-title">' + aptName + '</div>'
@@ -172,6 +198,7 @@ function buildInfoContent(item, isAuction) {
       + '<div class="info-price">' + sale + '</div>'
       + '<div class="info-row">감정가 ' + appraisal + '</div>'
       + '<div class="info-row">매각기일 ' + (item['매각기일'] || '-') + '</div>'
+      + tradeHtml
       + '</div>';
   } else {
     var aptName = item['아파트명'] || item['aptNm'] || '-';
@@ -195,6 +222,19 @@ function formatPrice(raw) {
     var 억 = Math.floor(n / 10000);
     var 만 = n % 10000;
     return 만 > 0 ? 억 + '억 ' + 만.toLocaleString() + '만원' : 억 + '억원';
+  }
+  return n.toLocaleString() + '만원';
+}
+
+// 만원 단위 → 억/만원 (실거래가 API는 만원 단위)
+function formatWon10k(raw) {
+  if (!raw && raw !== 0) return '-';
+  var n = parseInt(String(raw).replace(/,/g, '').trim(), 10);
+  if (isNaN(n) || n === 0) return '-';
+  if (n >= 10000) {
+    var eok = Math.floor(n / 10000);
+    var man = n % 10000;
+    return man > 0 ? eok + '억 ' + man.toLocaleString() + '만원' : eok + '억원';
   }
   return n.toLocaleString() + '만원';
 }
