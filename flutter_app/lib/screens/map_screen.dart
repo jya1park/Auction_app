@@ -151,7 +151,7 @@ class _MapScreenState extends State<MapScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('부동산 지도'),
+        title: const Text('Map'),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),

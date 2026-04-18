@@ -61,7 +61,7 @@ class _ListScreenState extends State<ListScreen> {
     final filtered = _filtered;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('아파트 목록'),
+        title: const Text('List'),
         actions: [
           IconButton(icon: const Icon(Icons.refresh), onPressed: _load),
         ],
