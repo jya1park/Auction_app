@@ -578,36 +578,66 @@ def main():
 
     # 실거래가를 경매 데이터에 임베드 (한 아파트 = 한 마커)
     print(f"\n{'='*60}")
-    print(f"[3.5/4] 실거래가를 경매 데이터에 임베드")
+    print(f"[3.5/4] 실거래가를 경매 데이터에 임베드 (법정주소 + 아파트명)")
     print(f"{'='*60}")
 
-    trade_lookup = {}  # normalized_apt → list of {전용면적, 최근거래, 거래건수}
+    # 1순위: 지번 기반 인덱스 (법정동 + 본번 + 부번)
+    trade_lookup_by_jibun = {}  # (동, 본번, 부번) → list of {전용면적, 최근거래, 거래건수}
+    # 2순위: 아파트명 기반 인덱스 (지번이 없는 경우)
+    trade_lookup_by_name = {}  # normalized_apt → list
+
     for trade in all_trades:
-        # _matched_auction_apt = CSV 경매 아파트명 (매칭 시 저장됨)
-        apt = trade.get("_matched_auction_apt") or trade.get("아파트명", trade.get("aptNm", ""))
-        if not apt:
-            continue
-        norm = _normalize_apt_name(apt)
-        trade_lookup.setdefault(norm, []).append({
+        group_data = {
             "전용면적": str(trade.get("전용면적(㎡)", trade.get("excluUseAr", ""))),
             "최근거래": trade.get("최근거래", []),
             "거래건수_6개월": trade.get("거래건수_6개월", 0),
-        })
+        }
+
+        # 지번 인덱스
+        dong = str(trade.get("법정동", trade.get("umdNm", ""))).strip()
+        try:
+            bonbun = int(trade.get("본번", trade.get("bonbun", 0)) or 0)
+            bubun = int(trade.get("부번", trade.get("bubun", 0)) or 0)
+        except (ValueError, TypeError):
+            bonbun, bubun = 0, 0
+        if dong and bonbun > 0:
+            jibun_key = (dong, bonbun, bubun)
+            trade_lookup_by_jibun.setdefault(jibun_key, []).append(group_data)
+
+        # 아파트명 인덱스 (fallback)
+        apt = trade.get("_matched_auction_apt") or trade.get("아파트명", trade.get("aptNm", ""))
+        if apt:
+            norm = _normalize_apt_name(apt)
+            trade_lookup_by_name.setdefault(norm, []).append(group_data)
 
     attached_count = 0
+    matched_by_jibun = 0
+    matched_by_name = 0
     for auction in auction_items:
-        apt = auction.get("아파트명", "")
-        if not apt:
-            auction["실거래가목록"] = []
-            continue
-        norm = _normalize_apt_name(apt)
-        groups = trade_lookup.get(norm, [])
+        groups = []
+        # 1순위: 법정동+본번+부번 매칭
+        dong = auction.get("동명", "").strip()
+        bonbun = auction.get("본번", 0)
+        bubun = auction.get("부번", 0)
+        if dong and bonbun > 0:
+            groups = trade_lookup_by_jibun.get((dong, bonbun, bubun), [])
+            if groups:
+                matched_by_jibun += 1
+
+        # 2순위: 아파트명 매칭
+        if not groups:
+            apt = auction.get("아파트명", "")
+            if apt:
+                groups = trade_lookup_by_name.get(_normalize_apt_name(apt), [])
+                if groups:
+                    matched_by_name += 1
+
         auction["실거래가목록"] = groups
         if groups:
             attached_count += 1
 
-    print("  → 경매 {}건 중 {}건에 실거래가 첨부됨".format(
-        len(auction_items), attached_count))
+    print("  → 경매 {}건 중 {}건에 실거래가 첨부됨 (지번:{}, 이름:{})".format(
+        len(auction_items), attached_count, matched_by_jibun, matched_by_name))
 
     # Firestore 업로드
     print(f"\n{'='*60}")
