@@ -338,15 +338,19 @@ def main():
             print("  조회 개월: {} ({}개월)".format(
                 ", ".join(months_to_fetch), len(months_to_fetch)))
 
-            # CSV에서 지역별 아파트명 목록 수집
+            # CSV에서 지역별 아파트명 + 동명 수집
             target_apts = {}  # {region_code: set(아파트명)}
+            target_dongs = {}  # {region_code: {아파트명: 동명}}
             # 경매 좌표 재사용용: 정규화된 아파트명 → (lat, lng)
             apt_coords = {}
             for item in auction_items:
                 code = item.get("_region_code", "")
                 apt = item.get("아파트명", "").strip()
+                dong = item.get("동명", "").strip()
                 if code and apt:
                     target_apts.setdefault(code, set()).add(apt)
+                    if dong:
+                        target_dongs.setdefault(code, {})[apt] = dong
                 lat = item.get("lat", 0)
                 lng = item.get("lng", 0)
                 if apt and lat and lng:
@@ -456,13 +460,21 @@ def main():
 
                 # 매칭 진단 (확장 후 최종)
                 if unmatched_targets:
-                    print("    [진단] CSV에 있지만 실거래가 매칭 실패: {}개".format(
+                    print("    [진단] 실거래가 없음: {}개".format(
                         len(unmatched_targets)))
                     for u in sorted(unmatched_targets)[:10]:
-                        print("      - {}".format(u))
+                        dong = target_dongs.get(code, {}).get(u, "")
+                        reason = ""
+                        if total_fetched == 0:
+                            reason = " (이 지역 거래 데이터 자체가 없음)"
+                        elif dong:
+                            reason = " ({}동)".format(dong)
+                        print("      - {}{}".format(u, reason))
                     if len(unmatched_targets) > 10:
                         print("      ... 외 {}개".format(len(unmatched_targets) - 10))
-                    if sample_unmatched:
+                    if total_fetched == 0:
+                        print("    [원인] 이 지역코드({})에 12개월간 거래 데이터 없음 → 코드 오류 가능".format(code))
+                    elif sample_unmatched:
                         print("    [참고] 이 지역 실거래가 아파트명 예시:")
                         for u in list(sample_unmatched.keys())[:10]:
                             print("      - {}".format(u))
