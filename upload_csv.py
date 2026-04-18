@@ -347,19 +347,25 @@ def main():
             print("  조회 개월: {} ({}개월)".format(
                 ", ".join(months_to_fetch), len(months_to_fetch)))
 
-            # CSV에서 지역별 아파트명 + 동명 수집
+            # CSV에서 지역별 아파트명 + 동명 + 지번 수집
             target_apts = {}  # {region_code: set(아파트명)}
             target_dongs = {}  # {region_code: {아파트명: 동명}}
+            # 지번 기반 매칭: (동명, 본번, 부번) → 아파트명
+            target_jibun = {}  # {region_code: {(동명, 본번, 부번): 아파트명}}
             # 경매 좌표 재사용용: 정규화된 아파트명 → (lat, lng)
             apt_coords = {}
             for item in auction_items:
                 code = item.get("_region_code", "")
                 apt = item.get("아파트명", "").strip()
                 dong = item.get("동명", "").strip()
+                bonbun = item.get("본번", 0)
+                bubun = item.get("부번", 0)
                 if code and apt:
                     target_apts.setdefault(code, set()).add(apt)
                     if dong:
                         target_dongs.setdefault(code, {})[apt] = dong
+                    if dong and bonbun:
+                        target_jibun.setdefault(code, {})[(dong, bonbun, bubun)] = apt
                 lat = item.get("lat", 0)
                 lng = item.get("lng", 0)
                 if apt and lat and lng:
@@ -392,12 +398,31 @@ def main():
                 matched_target_apts = set()  # 매칭된 CSV 아파트명
                 sample_unmatched = {}  # 샘플: 매칭 안된 실거래가 아파트명 (최대 10개)
 
+                jibun_map = target_jibun.get(code, {})
+
                 def _process_df(df, target_set, trade_type):
                     """dataframe의 각 행을 매칭해서 trade_groups에 추가. 매칭 수 반환"""
                     count = 0
                     for _, row in df.iterrows():
                         trade_apt = str(row.get("아파트명", row.get("aptNm", row.get("offiNm", "")))).strip()
-                        matched = _find_matching_target(trade_apt, target_set)
+                        matched = None
+
+                        # 1순위: 지번(본번/부번 + 법정동) 정확 매칭
+                        trade_dong = str(row.get("법정동", row.get("umdNm", ""))).strip()
+                        try:
+                            trade_bonbun = int(row.get("본번", row.get("bonbun", 0)) or 0)
+                            trade_bubun = int(row.get("부번", row.get("bubun", 0)) or 0)
+                        except (ValueError, TypeError):
+                            trade_bonbun, trade_bubun = 0, 0
+
+                        if trade_dong and trade_bonbun > 0:
+                            jibun_key = (trade_dong, trade_bonbun, trade_bubun)
+                            matched = jibun_map.get(jibun_key)
+
+                        # 2순위: 아파트명 유사도 매칭 (기존)
+                        if not matched:
+                            matched = _find_matching_target(trade_apt, target_set)
+
                         if not matched:
                             if trade_apt and len(sample_unmatched) < 10:
                                 sample_unmatched[trade_apt] = True

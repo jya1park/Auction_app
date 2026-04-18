@@ -28,7 +28,8 @@ def parse_location(raw):
         "전용면적": float,    # 면적 (㎡)
     }
     """
-    result = {"주소": "", "동명": "", "아파트명": "", "건물구조": "", "전용면적": 0.0}
+    result = {"주소": "", "동명": "", "아파트명": "", "건물구조": "", "전용면적": 0.0,
+              "본번": 0, "부번": 0}
 
     # 줄바꿈 제거
     text = raw.replace("\n", " ").strip()
@@ -77,6 +78,15 @@ def parse_location(raw):
 
     # 4) 남은 텍스트가 주소
     result["주소"] = text
+
+    # 5) 주소에서 지번 본번/부번 추출
+    #    "동 985" → 본번=985, 부번=0
+    #    "동 103-11" → 본번=103, 부번=11
+    #    도로명도 시도: "로 406" → 본번=406
+    jibun_match = re.search(r'[동읍면리]\s+(\d+)(?:-(\d+))?\s', text + " ")
+    if jibun_match:
+        result["본번"] = int(jibun_match.group(1))
+        result["부번"] = int(jibun_match.group(2) or 0)
 
     return result
 
@@ -212,6 +222,8 @@ def parse_csv(csv_path):
                 "아파트명": parsed_loc["아파트명"],
                 "건물구조": parsed_loc["건물구조"],
                 "전용면적": parsed_loc["전용면적"],
+                "본번": parsed_loc["본번"],
+                "부번": parsed_loc["부번"],
                 "감정가": appraisal,
                 "최저입찰가": 0,
                 "매각결과": sale_result,
@@ -276,6 +288,8 @@ def parse_list_csv(csv_path):
                 "아파트명": parsed_loc["아파트명"],
                 "건물구조": parsed_loc["건물구조"],
                 "전용면적": parsed_loc["전용면적"],
+                "본번": parsed_loc["본번"],
+                "부번": parsed_loc["부번"],
                 "감정가": appraisal,
                 "최저입찰가": min_bid,
                 "최저입찰가율": bid_rate,

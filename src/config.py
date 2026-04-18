@@ -4,7 +4,6 @@
 
 # 국토교통부 실거래가 API 엔드포인트 (apis.data.go.kr)
 # NOTE: http를 사용해야 함 (https 사용 시 SSL 오류 발생 가능)
-# 이전(폐지) URL: http://openapi.molit.go.kr/OpenAPI_ToolInstallPackage/service/rest/RTMSOBJSvc/...
 _BASE = "http://apis.data.go.kr/1613000"
 API_ENDPOINTS = {
     "아파트매매": f"{_BASE}/RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev",
@@ -17,7 +16,7 @@ API_ENDPOINTS = {
     "단독다가구전월세": f"{_BASE}/RTMSDataSvcSHRent/getRTMSDataSvcSHRent",
 }
 
-# 매매 거래 응답 필드 매핑 (영문 XML 태그 → 한글 컬럼명)
+# 매매 거래 응답 필드 매핑 (영문 XML 태그 -> 한글 컬럼명)
 TRADE_FIELDS = {
     "dealAmount": "거래금액(만원)",
     "dealingGbn": "거래유형",
@@ -36,6 +35,10 @@ TRADE_FIELDS = {
     "rgstDate": "등기일자",
     "buyerGbn": "매수자유형",
     "slerGbn": "매도자유형",
+    "bonbun": "본번",
+    "bubun": "부번",
+    "umdCd": "법정동코드",
+    "roadNmCd": "도로명코드",
 }
 
 # 오피스텔 매매 필드 (offiNm을 아파트명 컬럼에 매핑해서 통일)
@@ -55,6 +58,10 @@ OFFICETEL_TRADE_FIELDS = {
     "rgstDate": "등기일자",
     "buyerGbn": "매수자유형",
     "slerGbn": "매도자유형",
+    "bonbun": "본번",
+    "bubun": "부번",
+    "umdCd": "법정동코드",
+    "roadNmCd": "도로명코드",
 }
 
 # 전월세 거래 응답 필드 매핑
