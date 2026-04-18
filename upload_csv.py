@@ -583,7 +583,8 @@ def main():
 
     trade_lookup = {}  # normalized_apt → list of {전용면적, 최근거래, 거래건수}
     for trade in all_trades:
-        apt = trade.get("아파트명", trade.get("aptNm", ""))
+        # _matched_auction_apt = CSV 경매 아파트명 (매칭 시 저장됨)
+        apt = trade.get("_matched_auction_apt") or trade.get("아파트명", trade.get("aptNm", ""))
         if not apt:
             continue
         norm = _normalize_apt_name(apt)
