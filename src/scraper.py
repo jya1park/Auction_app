@@ -32,7 +32,7 @@ class RealEstateScraper:
         self.debug = debug
 
     def _call_api(self, url: str, lawd_cd: str, deal_ymd: str) -> Optional[str]:
-        """API 호출 후 XML 텍스트 반환. 403 에러 시 HTTPError 예외 발생"""
+        """API 호출 후 XML 텍스트 반환. 403은 예외 전파, 5xx는 재시도 후 None"""
         params = {
             "serviceKey": self.service_key,
             "LAWD_CD": lawd_cd,
@@ -41,25 +41,56 @@ class RealEstateScraper:
             "numOfRows": DEFAULT_NUM_OF_ROWS,
         }
 
-        try:
-            resp = requests.get(url, params=params, timeout=30)
-            # 403/권한 에러는 호출자가 처리할 수 있도록 예외 전파
-            if resp.status_code == 403:
-                raise requests.HTTPError(
-                    "403 Forbidden: API 활용신청이 안 된 것 같습니다. "
-                    "data.go.kr에서 해당 API 활용신청을 해주세요."
-                )
-            resp.raise_for_status()
-            if self.debug:
-                print(f"[DEBUG] URL: {resp.url}")
-                print(f"[DEBUG] Status: {resp.status_code}")
-                print(f"[DEBUG] 응답 앞 1000자:\n{resp.text[:1000]}")
-            return resp.text
-        except requests.HTTPError:
-            raise  # 403 등은 상위로 전파
-        except requests.RequestException as e:
-            print(f"[오류] API 호출 실패: {e}")
-            return None
+        max_retries = 3
+        backoff = 2  # 2, 4, 8초
+
+        for attempt in range(max_retries):
+            try:
+                resp = requests.get(url, params=params, timeout=30)
+                # 403/권한 에러는 호출자가 처리할 수 있도록 예외 전파
+                if resp.status_code == 403:
+                    raise requests.HTTPError(
+                        "403 Forbidden: API 활용신청이 안 된 것 같습니다. "
+                        "data.go.kr에서 해당 API 활용신청을 해주세요."
+                    )
+                # 5xx 서버 에러는 재시도
+                if 500 <= resp.status_code < 600:
+                    if attempt < max_retries - 1:
+                        wait = backoff * (2 ** attempt)
+                        print(f"  [재시도] {resp.status_code} 에러, {wait}초 후 재시도 ({attempt+1}/{max_retries})")
+                        time.sleep(wait)
+                        continue
+                    print(f"  [경고] {resp.status_code} 에러 지속, {lawd_cd}/{deal_ymd} 건너뜀")
+                    return None
+                resp.raise_for_status()
+                if self.debug:
+                    print(f"[DEBUG] URL: {resp.url}")
+                    print(f"[DEBUG] Status: {resp.status_code}")
+                    print(f"[DEBUG] 응답 앞 1000자:\n{resp.text[:1000]}")
+                return resp.text
+            except requests.HTTPError as e:
+                # 403 등은 상위로 전파
+                if "403" in str(e) or "Forbidden" in str(e):
+                    raise
+                # 기타 HTTP 에러는 재시도
+                if attempt < max_retries - 1:
+                    wait = backoff * (2 ** attempt)
+                    print(f"  [재시도] HTTPError, {wait}초 후 재시도 ({attempt+1}/{max_retries}): {e}")
+                    time.sleep(wait)
+                    continue
+                print(f"  [경고] API 호출 실패: {e}")
+                return None
+            except requests.RequestException as e:
+                # 네트워크 에러도 재시도
+                if attempt < max_retries - 1:
+                    wait = backoff * (2 ** attempt)
+                    print(f"  [재시도] 네트워크 에러, {wait}초 후 재시도 ({attempt+1}/{max_retries}): {e}")
+                    time.sleep(wait)
+                    continue
+                print(f"  [경고] API 호출 실패: {e}")
+                return None
+
+        return None
 
     def _parse_xml(self, xml_text: str, field_map: dict) -> List[Dict]:
         """XML 응답을 파싱하여 딕셔너리 리스트로 변환"""
