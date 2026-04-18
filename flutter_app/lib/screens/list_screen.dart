@@ -14,7 +14,7 @@ class _ListScreenState extends State<ListScreen> {
 
   List<Map<String, dynamic>> _items = [];
   bool _isLoading = false;
-  String _filter = 'all'; // all, sold, unsold, has_trade
+  String _filter = 'all'; // all, ongoing, sold, unsold, has_trade
 
   @override
   void initState() {
@@ -40,10 +40,12 @@ class _ListScreenState extends State<ListScreen> {
 
   List<Map<String, dynamic>> get _filtered {
     switch (_filter) {
+      case 'ongoing':
+        return _items.where((i) => i['경매상태'] == '경매중').toList();
       case 'sold':
-        return _items.where((i) => i['매각결과'] == '매각').toList();
+        return _items.where((i) => i['경매상태'] == '낙찰').toList();
       case 'unsold':
-        return _items.where((i) => i['매각결과'] == '유찰').toList();
+        return _items.where((i) => i['경매상태'] == '유찰').toList();
       case 'has_trade':
         return _items.where((i) {
           final list = i['실거래가목록'];
@@ -75,16 +77,16 @@ class _ListScreenState extends State<ListScreen> {
                   _filterChip('전체 (${_items.length})', 'all'),
                   const SizedBox(width: 6),
                   _filterChip(
-                      '매각 (${_items.where((i) => i['매각결과'] == '매각').length})',
+                      '경매중 (${_items.where((i) => i['경매상태'] == '경매중').length})',
+                      'ongoing'),
+                  const SizedBox(width: 6),
+                  _filterChip(
+                      '낙찰 (${_items.where((i) => i['경매상태'] == '낙찰').length})',
                       'sold'),
                   const SizedBox(width: 6),
                   _filterChip(
-                      '유찰 (${_items.where((i) => i['매각결과'] == '유찰').length})',
+                      '유찰 (${_items.where((i) => i['경매상태'] == '유찰').length})',
                       'unsold'),
-                  const SizedBox(width: 6),
-                  _filterChip(
-                      '실거래가 있음 (${_items.where((i) => (i['실거래가목록'] is List) && (i['실거래가목록'] as List).isNotEmpty).length})',
-                      'has_trade'),
                 ],
               ),
             ),

@@ -23,6 +23,7 @@ class _MapScreenState extends State<MapScreen> {
   List<Map<String, dynamic>> _items = [];
   bool _isLoading = true;
   bool _mapReady = false;
+  bool _showOngoing = true;
   bool _showSold = true;
   bool _showUnsold = true;
 
@@ -124,6 +125,7 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   void _toggleFilter(String type, bool value) {
+    if (type == 'ongoing') _showOngoing = value;
     if (type == 'sold') _showSold = value;
     if (type == 'unsold') _showUnsold = value;
     setState(() {});
@@ -143,8 +145,9 @@ class _MapScreenState extends State<MapScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final soldCount = _items.where((i) => i['매각결과'] == '매각').length;
-    final unsoldCount = _items.where((i) => i['매각결과'] == '유찰').length;
+    final ongoingCount = _items.where((i) => i['경매상태'] == '경매중').length;
+    final soldCount = _items.where((i) => i['경매상태'] == '낙찰').length;
+    final unsoldCount = _items.where((i) => i['경매상태'] == '유찰').length;
 
     return Scaffold(
       appBar: AppBar(
@@ -175,30 +178,44 @@ class _MapScreenState extends State<MapScreen> {
               child: Padding(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                child: Row(
-                  children: [
-                    FilterChip(
-                      avatar: CircleAvatar(
-                        backgroundColor: Colors.green.shade600,
-                        radius: 6,
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      FilterChip(
+                        avatar: CircleAvatar(
+                          backgroundColor: Colors.blue.shade600,
+                          radius: 6,
+                        ),
+                        label: Text('경매중 $ongoingCount',
+                            style: const TextStyle(fontSize: 12)),
+                        selected: _showOngoing,
+                        onSelected: (v) => _toggleFilter('ongoing', v),
                       ),
-                      label: Text('매각 $soldCount',
-                          style: const TextStyle(fontSize: 13)),
-                      selected: _showSold,
-                      onSelected: (v) => _toggleFilter('sold', v),
-                    ),
-                    const SizedBox(width: 8),
-                    FilterChip(
-                      avatar: CircleAvatar(
-                        backgroundColor: Colors.orange.shade600,
-                        radius: 6,
+                      const SizedBox(width: 6),
+                      FilterChip(
+                        avatar: CircleAvatar(
+                          backgroundColor: Colors.green.shade600,
+                          radius: 6,
+                        ),
+                        label: Text('낙찰 $soldCount',
+                            style: const TextStyle(fontSize: 12)),
+                        selected: _showSold,
+                        onSelected: (v) => _toggleFilter('sold', v),
                       ),
-                      label: Text('유찰 $unsoldCount',
-                          style: const TextStyle(fontSize: 13)),
-                      selected: _showUnsold,
-                      onSelected: (v) => _toggleFilter('unsold', v),
-                    ),
-                  ],
+                      const SizedBox(width: 6),
+                      FilterChip(
+                        avatar: CircleAvatar(
+                          backgroundColor: Colors.orange.shade600,
+                          radius: 6,
+                        ),
+                        label: Text('유찰 $unsoldCount',
+                            style: const TextStyle(fontSize: 12)),
+                        selected: _showUnsold,
+                        onSelected: (v) => _toggleFilter('unsold', v),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),

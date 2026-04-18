@@ -172,13 +172,9 @@ def _to_int(val: str) -> int:
 def parse_csv(csv_path):
     # type: (str) -> List[Dict]
     """
-    CSV 파일 파싱
-
-    Returns: 각 행을 딕셔너리로 변환한 리스트
+    courtauction_result.csv 파싱 (경매 결과)
     """
     results = []
-
-    # BOM 처리를 위해 utf-8-sig 사용
     with open(csv_path, encoding="utf-8-sig") as f:
         reader = csv.DictReader(f)
         for row in reader:
@@ -193,10 +189,17 @@ def parse_csv(csv_path):
             sale_amount = _to_int(row.get("매각금액_원") or row.get("매각금액"))
             sale_result = row.get("매각결과", "").strip()
 
-            # 할인율 계산 (매각금액 / 감정가)
             discount_ratio = 0.0
             if sale_amount > 0 and appraisal > 0:
                 discount_ratio = round(sale_amount / appraisal * 100, 1)
+
+            # 매각결과를 3분류로 통일: 낙찰/유찰/경매중
+            if sale_result == "매각":
+                status = "낙찰"
+            elif sale_result == "유찰":
+                status = "유찰"
+            else:
+                status = "경매중"
 
             item = {
                 "사건번호": row.get("사건번호", "").strip(),
@@ -210,11 +213,80 @@ def parse_csv(csv_path):
                 "건물구조": parsed_loc["건물구조"],
                 "전용면적": parsed_loc["전용면적"],
                 "감정가": appraisal,
+                "최저입찰가": 0,
                 "매각결과": sale_result,
+                "경매상태": status,
                 "매각금액": sale_amount,
                 "할인율": discount_ratio,
                 "매각기일": sale_date,
                 "매각년월": sale_ym,
+                "유찰횟수": 0,
+                "비고": row.get("비고", "").strip(),
+            }
+            results.append(item)
+
+    return results
+
+
+def parse_list_csv(csv_path):
+    # type: (str) -> List[Dict]
+    """
+    courtauction_list.csv 파싱 (경매 진행중)
+
+    컬럼: 사건번호, 법원, 물건번호, 물건주소, 용도, 비고, 감정평가액,
+          감정가_원, 입찰기일, 유찰횟수_입찰란, 링크, 진행상태,
+          최저입찰가_표시, 최저입찰가_원, 최저입찰가율, 유찰횟수, 유찰횟수_원문
+    """
+    results = []
+    with open(csv_path, encoding="utf-8-sig") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            raw_location = row.get("물건주소", "")
+            parsed_loc = parse_location(raw_location)
+
+            bid_date_raw = row.get("입찰기일", "")
+            bid_date = parse_sale_date(bid_date_raw)
+            bid_ym = parse_sale_month(bid_date_raw)
+
+            appraisal = _to_int(row.get("감정가_원") or row.get("감정평가액"))
+            min_bid = _to_int(row.get("최저입찰가_원", ""))
+
+            try:
+                fail_count = int(row.get("유찰횟수", 0) or 0)
+            except (ValueError, TypeError):
+                fail_count = 0
+
+            # 최저입찰가율
+            try:
+                bid_rate = float(row.get("최저입찰가율", 0) or 0)
+            except (ValueError, TypeError):
+                bid_rate = 0.0
+
+            usage = row.get("진행상태", "").strip()
+            fail_text = row.get("유찰횟수_원문", "").strip()
+
+            item = {
+                "사건번호": row.get("사건번호", "").strip(),
+                "물건번호": row.get("물건번호", "").strip(),
+                "법원": row.get("법원", "").strip(),
+                "용도": usage if usage else "아파트",
+                "소재지_원본": raw_location,
+                "주소": parsed_loc["주소"],
+                "동명": parsed_loc["동명"],
+                "아파트명": parsed_loc["아파트명"],
+                "건물구조": parsed_loc["건물구조"],
+                "전용면적": parsed_loc["전용면적"],
+                "감정가": appraisal,
+                "최저입찰가": min_bid,
+                "최저입찰가율": bid_rate,
+                "매각결과": "",
+                "경매상태": "경매중",
+                "매각금액": 0,
+                "할인율": 0.0,
+                "매각기일": bid_date,
+                "매각년월": bid_ym,
+                "유찰횟수": fail_count,
+                "유찰횟수_원문": fail_text,
                 "비고": row.get("비고", "").strip(),
             }
             results.append(item)

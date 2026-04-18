@@ -20,7 +20,7 @@ from datetime import datetime
 from google.cloud import firestore
 
 from src.config import TRADE_FIELDS, OFFICETEL_TRADE_FIELDS
-from src.csv_parser import parse_csv
+from src.csv_parser import parse_csv, parse_list_csv
 from src.geocoder import geocode
 from src.matcher import extract_region_from_address
 from src.region_code import search_region
@@ -162,7 +162,9 @@ def batch_upload(db, collection_name, docs, batch_size=400):
 
 def main():
     parser = argparse.ArgumentParser(description="경매 CSV → Firestore 업로드")
-    parser.add_argument("csv_file", help="CSV 파일 경로")
+    parser.add_argument("csv_file", help="경매결과 CSV (courtauction_result.csv)")
+    parser.add_argument("--list-csv", default="",
+                        help="경매진행중 CSV (courtauction_list.csv)")
     parser.add_argument("--skip-trade", action="store_true",
                         help="실거래가 매칭 생략 (경매 데이터만 업로드)")
     parser.add_argument("--skip-geocode", action="store_true",
@@ -179,15 +181,33 @@ def main():
 
     # CSV 파싱
     print(f"\n{'='*60}")
-    print(f"[1/4] CSV 파싱: {args.csv_file}")
+    print(f"[1/4] CSV 파싱")
     print(f"{'='*60}")
 
+    # 1) 경매결과 (낙찰/유찰)
     if not os.path.exists(args.csv_file):
         print(f"[오류] 파일을 찾을 수 없습니다: {args.csv_file}")
         sys.exit(1)
 
     auction_items = parse_csv(args.csv_file)
-    print(f"  → {len(auction_items)}건 파싱 완료")
+    print(f"  경매결과: {args.csv_file} → {len(auction_items)}건")
+
+    # 2) 경매진행중 (있으면)
+    list_csv_path = args.list_csv
+    if not list_csv_path:
+        # 자동 탐색: courtauction_list.csv가 같은 폴더에 있으면
+        auto_path = os.path.join(os.path.dirname(args.csv_file) or ".", "courtauction_list.csv")
+        if os.path.exists(auto_path):
+            list_csv_path = auto_path
+
+    if list_csv_path and os.path.exists(list_csv_path):
+        list_items = parse_list_csv(list_csv_path)
+        print(f"  경매진행중: {list_csv_path} → {len(list_items)}건")
+        auction_items.extend(list_items)
+    elif list_csv_path:
+        print(f"  [경고] 진행중 CSV를 찾을 수 없습니다: {list_csv_path}")
+
+    print(f"  → 전체 {len(auction_items)}건 (낙찰+유찰+경매중)")
 
     if args.limit > 0:
         auction_items = auction_items[: args.limit]

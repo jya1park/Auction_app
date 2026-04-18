@@ -48,6 +48,7 @@ var map;
 var markers = [];
 var infoWindows = [];
 var currentInfoWindow = null;
+var showOngoing = true;
 var showSold = true;
 var showUnsold = true;
 var allItems = [];
@@ -103,6 +104,7 @@ function loadMarkers(jsonStr) {
 
 // 필터 토글 (Flutter에서 호출)
 function setFilter(type, visible) {
+  if (type === 'ongoing') showOngoing = visible;
   if (type === 'sold') showSold = visible;
   if (type === 'unsold') showUnsold = visible;
   renderMarkers();
@@ -118,18 +120,23 @@ function renderMarkers() {
   allItems.forEach(function(item) {
     if (!item.lat || item.lat === 0) return;
 
-    // 필터: 매각/유찰
-    var result = item['매각결과'] || '';
-    var isSold = (result === '매각');
-    if (isSold && !showSold) return;
-    if (!isSold && !showUnsold) return;
+    // 필터: 경매중/낙찰/유찰
+    var status = item['경매상태'] || '';
+    if (status === '경매중' && !showOngoing) return;
+    if (status === '낙찰' && !showSold) return;
+    if (status === '유찰' && !showUnsold) return;
 
     var position = new kakao.maps.LatLng(item.lat, item.lng);
 
-    // 마커 이미지: 매각=초록별, 유찰=주황별
-    var imageSrc = isSold
-      ? 'https://t1.daumcdn.net/localimg/localimages/07/mapapidoc/markerStar.png'
-      : 'https://t1.daumcdn.net/localimg/localimages/07/2018/pc/img/marker_spot.png';
+    // 마커 이미지: 경매중=파랑, 낙찰=초록별, 유찰=주황
+    var imageSrc;
+    if (status === '낙찰') {
+      imageSrc = 'https://t1.daumcdn.net/localimg/localimages/07/mapapidoc/markerStar.png';
+    } else if (status === '유찰') {
+      imageSrc = 'https://t1.daumcdn.net/localimg/localimages/07/2018/pc/img/marker_spot.png';
+    } else {
+      imageSrc = 'https://t1.daumcdn.net/localimg/localimages/07/mapapidoc/marker_blue.png';
+    }
     var imageSize = new kakao.maps.Size(24, 35);
     var markerImage = new kakao.maps.MarkerImage(imageSrc, imageSize);
 
@@ -160,12 +167,25 @@ function renderMarkers() {
 function buildInfoContent(item, isAuction) {
   if (isAuction) {
     var aptName = item['아파트명'] || item['사건번호'] || '-';
-    var result = item['매각결과'] || '';
+    var status = item['경매상태'] || item['매각결과'] || '';
     var appraisal = formatWon(item['감정가']);
-    var sale = item['매각금액'] ? formatWon(item['매각금액']) : '-';
-    var resultBadge = result === '매각'
-      ? '<span style="background:#dcfce7;color:#166534;padding:1px 6px;border-radius:4px;font-size:11px;font-weight:700;">매각</span>'
-      : result === '유찰' ? '<span style="background:#fff7ed;color:#9a3412;padding:1px 6px;border-radius:4px;font-size:11px;font-weight:700;">유찰</span>' : '';
+    var minBid = item['최저입찰가'] ? formatWon(item['최저입찰가']) : '';
+    var sale = item['매각금액'] ? formatWon(item['매각금액']) : '';
+    var failCount = item['유찰횟수'] || 0;
+    var bidRate = item['최저입찰가율'] || 0;
+
+    var statusBadge = '';
+    if (status === '낙찰') {
+      statusBadge = '<span style="background:#dcfce7;color:#166534;padding:1px 6px;border-radius:4px;font-size:11px;font-weight:700;">낙찰</span>';
+    } else if (status === '유찰') {
+      statusBadge = '<span style="background:#fff7ed;color:#9a3412;padding:1px 6px;border-radius:4px;font-size:11px;font-weight:700;">유찰</span>';
+    } else if (status === '경매중') {
+      statusBadge = '<span style="background:#dbeafe;color:#1e40af;padding:1px 6px;border-radius:4px;font-size:11px;font-weight:700;">경매중</span>';
+    }
+
+    // 주요 가격: 낙찰=매각금액, 경매중=최저입찰가, 유찰=감정가
+    var mainPrice = sale || minBid || appraisal;
+    var mainLabel = sale ? '' : (minBid ? '최저입찰가 ' : '감정가 ');
 
     // 실거래가 요약 (가장 최근 1건만 표시)
     var tradeHtml = '';
@@ -192,13 +212,21 @@ function buildInfoContent(item, isAuction) {
       }
     }
 
+    var extraInfo = '';
+    if (status === '경매중' && failCount > 0) {
+      extraInfo = '<div class="info-row">유찰 ' + failCount + '회 | 입찰가율 ' + bidRate + '%</div>';
+    }
+
     return '<div class="info-window info-auction">'
-      + '<span class="info-badge badge-auction">경매</span> ' + resultBadge
+      + statusBadge
       + '<div class="info-title">' + aptName + '</div>'
       + '<div class="info-row">' + (item['동명'] || item['주소'] || '').substring(0, 40) + '</div>'
-      + '<div class="info-price">' + sale + '</div>'
+      + '<div class="info-price">' + mainLabel + mainPrice + '</div>'
       + '<div class="info-row">감정가 ' + appraisal + '</div>'
-      + '<div class="info-row">매각기일 ' + (item['매각기일'] || '-') + '</div>'
+      + (status === '경매중'
+        ? '<div class="info-row">입찰기일 ' + (item['매각기일'] || '-') + '</div>'
+        : '<div class="info-row">매각기일 ' + (item['매각기일'] || '-') + '</div>')
+      + extraInfo
       + tradeHtml
       + '</div>';
   } else {

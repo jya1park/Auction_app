@@ -17,15 +17,18 @@ class AuctionCard extends StatelessWidget {
     final appraisalRaw = data['감정가'];
     final saleAmountRaw = data['매각금액'];
     final saleDate = data['매각기일']?.toString() ?? '-';
-    final saleResult = (data['매각결과'] ?? '').toString();
+    final status = (data['경매상태'] ?? '').toString();
     final discountRatio = data['할인율'];
     final area = data['전용면적'];
-    final structure = (data['건물구조'] ?? '').toString();
+    final minBidRaw = data['최저입찰가'];
+    final bidRate = data['최저입찰가율'];
+    final failCount = data['유찰횟수'] ?? 0;
     final tradeGroups = (data['실거래가목록'] is List)
         ? (data['실거래가목록'] as List)
         : <dynamic>[];
 
-    final isSold = saleResult == '매각';
+    final isOngoing = status == '경매중';
+    final isSold = status == '낙찰';
 
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
@@ -61,20 +64,28 @@ class AuctionCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                if (saleResult.isNotEmpty)
+                if (status.isNotEmpty)
                   Container(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 10, vertical: 3),
                     decoration: BoxDecoration(
-                      color: isSold ? Colors.green.shade100 : Colors.orange.shade100,
+                      color: isOngoing
+                          ? Colors.blue.shade100
+                          : isSold
+                              ? Colors.green.shade100
+                              : Colors.orange.shade100,
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
-                      saleResult,
+                      status,
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
-                        color: isSold ? Colors.green.shade900 : Colors.orange.shade900,
+                        color: isOngoing
+                            ? Colors.blue.shade900
+                            : isSold
+                                ? Colors.green.shade900
+                                : Colors.orange.shade900,
                       ),
                     ),
                   ),
@@ -111,7 +122,7 @@ class AuctionCard extends StatelessWidget {
                     children: [
                       Icon(Icons.gavel, size: 14, color: Colors.amber.shade900),
                       const SizedBox(width: 4),
-                      Text('경매 정보',
+                      Text(isOngoing ? '경매 진행중' : '경매 정보',
                           style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w700,
@@ -123,6 +134,12 @@ class AuctionCard extends StatelessWidget {
                                 fontSize: 11,
                                 fontWeight: FontWeight.w700,
                                 color: colorScheme.primary)),
+                      if (isOngoing && failCount is num && failCount > 0)
+                        Text('유찰 $failCount회',
+                            style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.orange.shade800)),
                     ],
                   ),
                   const SizedBox(height: 6),
@@ -133,20 +150,28 @@ class AuctionCard extends StatelessWidget {
                             colorScheme.outline),
                       ),
                       Expanded(
-                        child: _miniPrice(
-                          isSold ? '매각금액' : '최저매각가',
-                          saleAmountRaw is num && saleAmountRaw > 0
-                              ? _formatWon(saleAmountRaw)
-                              : '-',
-                          colorScheme.error,
-                        ),
+                        child: isOngoing
+                            ? _miniPrice(
+                                '최저입찰가${bidRate is num && bidRate > 0 ? " (${bidRate.toStringAsFixed(0)}%)" : ""}',
+                                minBidRaw is num && minBidRaw > 0
+                                    ? _formatWon(minBidRaw)
+                                    : '-',
+                                colorScheme.error,
+                              )
+                            : _miniPrice(
+                                isSold ? '매각금액' : '최저매각가',
+                                saleAmountRaw is num && saleAmountRaw > 0
+                                    ? _formatWon(saleAmountRaw)
+                                    : '-',
+                                colorScheme.error,
+                              ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 4),
                   Text(
                     [
-                      '매각기일: $saleDate',
+                      isOngoing ? '입찰기일: $saleDate' : '매각기일: $saleDate',
                       itemType,
                       if (area is num && area > 0) '${area}㎡',
                     ].join(' · '),
