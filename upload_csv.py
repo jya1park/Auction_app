@@ -282,25 +282,17 @@ def main():
         else:
             trade_scraper = RealEstateScraper(service_key)
 
-            # 오피스텔 API 전용 키 (별도 활용신청 필요)
-            office_key = get_data_go_kr_office_key()
+            # 오피스텔 API 키 (같은 키로 폴백)
+            office_key = get_data_go_kr_office_key() or service_key
             office_scraper = RealEstateScraper(office_key) if office_key else None
             officetel_enabled = {"value": office_scraper is not None}
             if office_scraper:
-                print("  [정보] 오피스텔 API 키 감지됨 (마지막 8자: ...{})".format(
-                    office_key[-8:] if len(office_key) >= 8 else office_key))
+                is_same = (office_key == service_key)
+                source = "일반 키 재사용" if is_same else "DATA_GO_KR_API_KEY_OFFICE"
+                print("  [정보] 오피스텔 API 키 활성 ({}, 마지막 8자: ...{})".format(
+                    source, office_key[-8:] if len(office_key) >= 8 else office_key))
             else:
-                env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
-                print("  [정보] DATA_GO_KR_API_KEY_OFFICE 감지 안 됨 → 오피스텔 조회 생략")
-                print("         .env 경로: {}".format(env_path))
-                if os.path.exists(env_path):
-                    with open(env_path, encoding="utf-8") as f:
-                        content = f.read()
-                    if "DATA_GO_KR_API_KEY_OFFICE" in content:
-                        print("         → .env에 해당 키 이름은 있지만 값 파싱 실패")
-                        print("         → 형식 확인: DATA_GO_KR_API_KEY_OFFICE=값 (따옴표 없이)")
-                    else:
-                        print("         → .env에 DATA_GO_KR_API_KEY_OFFICE 라인이 없음")
+                print("  [정보] 오피스텔 API 키 없음 → 오피스텔 조회 생략")
 
             def _try_fetch_officetel(code, ym):
                 """오피스텔매매 조회. 권한 없으면 비활성화"""
