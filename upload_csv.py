@@ -107,7 +107,7 @@ def get_db():
 
 
 def _read_env_key(var_name):
-    """환경변수 또는 .env 파일에서 키 읽기"""
+    """환경변수 또는 .env 파일에서 키 읽기 (공백, 따옴표 허용)"""
     key = os.environ.get(var_name)
     if key:
         return key
@@ -115,11 +115,17 @@ def _read_env_key(var_name):
     if os.path.exists(env_path):
         with open(env_path, encoding="utf-8") as f:
             for line in f:
+                # 주석 제거, 공백 제거
                 line = line.strip()
-                if line.startswith(var_name + "="):
-                    val = line.split("=", 1)[1].strip().strip("\"'")
-                    if val:
-                        return val
+                if not line or line.startswith("#"):
+                    continue
+                # KEY=VALUE 형식 파싱 (KEY 주변 공백 허용)
+                if "=" in line:
+                    k, _, v = line.partition("=")
+                    if k.strip() == var_name:
+                        val = v.strip().strip("\"'").strip()
+                        if val:
+                            return val
     return ""
 
 
@@ -281,9 +287,20 @@ def main():
             office_scraper = RealEstateScraper(office_key) if office_key else None
             officetel_enabled = {"value": office_scraper is not None}
             if office_scraper:
-                print("  [정보] 오피스텔 API 키 감지됨 (DATA_GO_KR_API_KEY_OFFICE)")
+                print("  [정보] 오피스텔 API 키 감지됨 (마지막 8자: ...{})".format(
+                    office_key[-8:] if len(office_key) >= 8 else office_key))
             else:
-                print("  [정보] DATA_GO_KR_API_KEY_OFFICE 없음 → 오피스텔 조회 생략")
+                env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+                print("  [정보] DATA_GO_KR_API_KEY_OFFICE 감지 안 됨 → 오피스텔 조회 생략")
+                print("         .env 경로: {}".format(env_path))
+                if os.path.exists(env_path):
+                    with open(env_path, encoding="utf-8") as f:
+                        content = f.read()
+                    if "DATA_GO_KR_API_KEY_OFFICE" in content:
+                        print("         → .env에 해당 키 이름은 있지만 값 파싱 실패")
+                        print("         → 형식 확인: DATA_GO_KR_API_KEY_OFFICE=값 (따옴표 없이)")
+                    else:
+                        print("         → .env에 DATA_GO_KR_API_KEY_OFFICE 라인이 없음")
 
             def _try_fetch_officetel(code, ym):
                 """오피스텔매매 조회. 권한 없으면 비활성화"""
