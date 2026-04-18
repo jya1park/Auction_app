@@ -216,9 +216,22 @@ function buildInfoContent(item, isAuction) {
       extraInfo = '<div class="info-row">유찰 ' + failCount + '회 | 입찰가율 ' + bidRate + '%</div>';
     }
 
+    var usage = item['용도'] || '';
+    var area = item['전용면적'];
+    var areaText = (area && area > 0) ? (area + '㎡') : '';
+
+    // 용도 + 면적 한 줄로 (아파트 84.99㎡)
+    var typeLine = '';
+    if (usage || areaText) {
+      typeLine = '<div class="info-row" style="color:#6b7280;font-weight:600;margin-top:2px;">'
+        + [usage, areaText].filter(function(s){return s;}).join(' · ')
+        + '</div>';
+    }
+
     return '<div class="info-window info-auction">'
       + statusBadge
       + '<div class="info-title">' + aptName + '</div>'
+      + typeLine
       + '<div class="info-row">' + (item['동명'] || item['주소'] || '').substring(0, 40) + '</div>'
       + '<div class="info-price">' + mainLabel + mainPrice + '</div>'
       + '<div class="info-row">감정가 ' + appraisal + '</div>'
