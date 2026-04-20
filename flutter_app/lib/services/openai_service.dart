@@ -2,11 +2,10 @@ import 'dart:convert';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:http/http.dart' as http;
 
-class ClaudeService {
-  static const _model = 'claude-sonnet-4-6';
-  static const _apiUrl = 'https://api.anthropic.com/v1/messages';
-  static const _apiKey = String.fromEnvironment('ANTHROPIC_API_KEY');
-  static const _apiVersion = '2023-06-01';
+class OpenAIService {
+  static const _model = 'gpt-4o';
+  static const _apiUrl = 'https://api.openai.com/v1/chat/completions';
+  static const _apiKey = String.fromEnvironment('OPENAI_API_KEY');
   static const _maxTokens = 2048;
 
   final List<Map<String, String>> _history = [];
@@ -25,8 +24,7 @@ class ClaudeService {
         await rootBundle.loadString('assets/tax_knowledge/00_index.json');
     final Map<String, dynamic> parsed = json.decode(indexJson);
     _keywordIndex = parsed.map(
-      (key, value) =>
-          MapEntry(key, (value as List).cast<String>()),
+      (key, value) => MapEntry(key, (value as List).cast<String>()),
     );
 
     final allFiles = <String>{};
@@ -55,7 +53,10 @@ class ClaudeService {
       return _docCache.values.toList();
     }
 
-    return matchedFiles.map((f) => _docCache[f] ?? '').where((d) => d.isNotEmpty).toList();
+    return matchedFiles
+        .map((f) => _docCache[f] ?? '')
+        .where((d) => d.isNotEmpty)
+        .toList();
   }
 
   String _buildSystemPrompt(List<String> docs) {
@@ -127,7 +128,7 @@ class ClaudeService {
   Future<String> sendMessage(String message) async {
     if (!hasApiKey) {
       return '⚠️ API 키가 설정되지 않았습니다.\n\n'
-          'flutter run --dart-define=ANTHROPIC_API_KEY=sk-ant-... 으로 실행해주세요.';
+          'flutter run --dart-define=OPENAI_API_KEY=sk-... 으로 실행해주세요.';
     }
 
     await loadKnowledgeBase();
@@ -137,11 +138,15 @@ class ClaudeService {
 
     _history.add({'role': 'user', 'content': message});
 
+    final messages = <Map<String, String>>[
+      {'role': 'system', 'content': systemPrompt},
+      ..._history,
+    ];
+
     final body = json.encode({
       'model': _model,
       'max_tokens': _maxTokens,
-      'system': systemPrompt,
-      'messages': _history,
+      'messages': messages,
     });
 
     try {
@@ -149,21 +154,22 @@ class ClaudeService {
         Uri.parse(_apiUrl),
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': _apiKey,
-          'anthropic-version': _apiVersion,
+          'Authorization': 'Bearer $_apiKey',
         },
         body: body,
       );
 
       if (response.statusCode == 200) {
         final data = json.decode(utf8.decode(response.bodyBytes));
-        final text = data['content'][0]['text'] as String;
+        final text =
+            data['choices'][0]['message']['content'] as String;
         _history.add({'role': 'assistant', 'content': text});
         return text;
       } else {
         _history.removeLast();
         final errorBody = json.decode(utf8.decode(response.bodyBytes));
-        final errorMsg = errorBody['error']?['message'] ?? '알 수 없는 오류';
+        final errorMsg =
+            errorBody['error']?['message'] ?? '알 수 없는 오류';
         return '⚠️ API 오류 (${response.statusCode}): $errorMsg';
       }
     } catch (e) {

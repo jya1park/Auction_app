@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../services/claude_service.dart';
+import '../services/openai_service.dart';
 import '../widgets/chat_bubble.dart';
 
 class TaxChatScreen extends StatefulWidget {
@@ -13,7 +13,7 @@ class TaxChatScreen extends StatefulWidget {
 }
 
 class _TaxChatScreenState extends State<TaxChatScreen> {
-  final _claudeService = ClaudeService();
+  final _aiService = OpenAIService();
   final _controller = TextEditingController();
   final _scrollController = ScrollController();
   final _focusNode = FocusNode();
@@ -25,7 +25,7 @@ class _TaxChatScreenState extends State<TaxChatScreen> {
   void initState() {
     super.initState();
     if (widget.property != null) {
-      _claudeService.setPropertyContext(widget.property!);
+      _aiService.setPropertyContext(widget.property!);
     }
     _addWelcomeMessage();
   }
@@ -69,7 +69,7 @@ class _TaxChatScreenState extends State<TaxChatScreen> {
     });
     _scrollToBottom();
 
-    final response = await _claudeService.sendMessage(text.trim());
+    final response = await _aiService.sendMessage(text.trim());
 
     setState(() {
       _messages.add(_ChatMessage(text: response, isUser: false));
@@ -94,7 +94,7 @@ class _TaxChatScreenState extends State<TaxChatScreen> {
               Navigator.pop(ctx);
               setState(() {
                 _messages.clear();
-                _claudeService.clearHistory();
+                _aiService.clearHistory();
                 _addWelcomeMessage();
               });
             },
