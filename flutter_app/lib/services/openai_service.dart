@@ -147,6 +147,7 @@ class OpenAIService {
     final body = json.encode({
       'model': _model,
       'max_tokens': _maxTokens,
+      'temperature': 0,
       'messages': messages,
     });
 
