@@ -28,7 +28,7 @@ class _HomeScreenState extends State<HomeScreen> {
           MaterialPageRoute(builder: (_) => const TaxChatScreen()),
         ),
         icon: const Icon(Icons.support_agent),
-        label: const Text('세금상담'),
+        label: const Text('AI'),
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
