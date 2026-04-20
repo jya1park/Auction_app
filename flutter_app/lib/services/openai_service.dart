@@ -72,6 +72,8 @@ class OpenAIService {
     buffer.writeln('- 금액은 "만원" 또는 "억원" 단위로 읽기 쉽게 표시하세요.');
     buffer.writeln('- 세금 계산이 필요하면 반드시 제공된 계산기 함수를 호출하세요. 직접 계산하지 마세요.');
     buffer.writeln('- 계산기 결과의 breakdown을 활용하여 단계별 과정을 보여주세요.');
+    buffer.writeln('- 각 세금 항목이 왜 그 금액인지 계산 로직을 설명하세요. (예: "낙찰가 9억은 6~9억 구간이므로 세율 (9×2/3-3)=3%")');
+    buffer.writeln('- 적용된 세율, 공제, 과세표준 산출 근거를 함께 안내하세요.');
     buffer.writeln('- 가정이 필요한 경우 (주택 수, 조정대상지역 여부 등) 명시적으로 안내하세요.');
     buffer.writeln('- 아래 제공된 세법 자료를 기반으로 정확하게 답변하세요.');
     buffer.writeln('- 확실하지 않은 내용은 전문가 상담을 권유하세요.');
@@ -134,7 +136,7 @@ class OpenAIService {
     final body = json.encode({
       'model': _model,
       'max_completion_tokens': _maxTokens,
-      'temperature': 0,
+      'temperature': 0.1,
       'messages': messages,
       'tools': TaxCalculator.toolDefinitions,
     });
