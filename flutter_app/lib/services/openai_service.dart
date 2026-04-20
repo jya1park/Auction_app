@@ -4,7 +4,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 
 class OpenAIService {
-  static const _model = 'gpt-4.1-mini';
+  static const _model = 'gpt-5-mini';
   static const _apiUrl = 'https://api.openai.com/v1/chat/completions';
   static final _apiKey = dotenv.env['OPENAI_API_KEY'] ?? '';
   static const _maxTokens = 2048;
