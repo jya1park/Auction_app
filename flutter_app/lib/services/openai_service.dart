@@ -2,15 +2,16 @@ import 'dart:convert';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
+import 'tax_calculator.dart';
 
 class OpenAIService {
-  static const _model = 'gpt-5.4-nano';
+  static const _model = 'gpt-4o';
   static const _apiUrl = 'https://api.openai.com/v1/chat/completions';
   static const _maxTokens = 2048;
 
   static String get _apiKey => dotenv.env['OPENAI_API_KEY'] ?? '';
 
-  final List<Map<String, String>> _history = [];
+  final List<Map<String, dynamic>> _history = [];
   Map<String, dynamic>? _propertyContext;
 
   Map<String, List<String>> _keywordIndex = {};
@@ -69,7 +70,8 @@ class OpenAIService {
     buffer.writeln('## 규칙');
     buffer.writeln('- 항상 한국어로 응답하세요.');
     buffer.writeln('- 금액은 "만원" 또는 "억원" 단위로 읽기 쉽게 표시하세요.');
-    buffer.writeln('- 세금 계산 시 단계별로 과정을 보여주세요.');
+    buffer.writeln('- 세금 계산이 필요하면 반드시 제공된 계산기 함수를 호출하세요. 직접 계산하지 마세요.');
+    buffer.writeln('- 계산기 결과의 breakdown을 활용하여 단계별 과정을 보여주세요.');
     buffer.writeln('- 가정이 필요한 경우 (주택 수, 조정대상지역 여부 등) 명시적으로 안내하세요.');
     buffer.writeln('- 아래 제공된 세법 자료를 기반으로 정확하게 답변하세요.');
     buffer.writeln('- 확실하지 않은 내용은 전문가 상담을 권유하세요.');
@@ -127,6 +129,34 @@ class OpenAIService {
     return '${amount.round()}원';
   }
 
+  Future<Map<String, dynamic>> _callApi(
+      List<Map<String, dynamic>> messages) async {
+    final body = json.encode({
+      'model': _model,
+      'max_completion_tokens': _maxTokens,
+      'temperature': 0,
+      'messages': messages,
+      'tools': TaxCalculator.toolDefinitions,
+    });
+
+    final response = await http.post(
+      Uri.parse(_apiUrl),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $_apiKey',
+      },
+      body: body,
+    );
+
+    if (response.statusCode == 200) {
+      return json.decode(utf8.decode(response.bodyBytes));
+    } else {
+      final errorBody = json.decode(utf8.decode(response.bodyBytes));
+      throw Exception(
+          'API 오류 (${response.statusCode}): ${errorBody['error']?['message'] ?? '알 수 없는 오류'}');
+    }
+  }
+
   Future<String> sendMessage(String message) async {
     if (!hasApiKey) {
       return '⚠️ API 키가 설정되지 않았습니다.\n\n'
@@ -140,43 +170,53 @@ class OpenAIService {
 
     _history.add({'role': 'user', 'content': message});
 
-    final messages = <Map<String, String>>[
+    final messages = <Map<String, dynamic>>[
       {'role': 'system', 'content': systemPrompt},
       ..._history,
     ];
 
-    final body = json.encode({
-      'model': _model,
-      'max_completion_tokens': _maxTokens,
-      'temperature': 0,
-      'messages': messages,
-    });
-
     try {
-      final response = await http.post(
-        Uri.parse(_apiUrl),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $_apiKey',
-        },
-        body: body,
-      );
+      var data = await _callApi(messages);
+      var choice = data['choices'][0];
+      var assistantMessage = choice['message'];
 
-      if (response.statusCode == 200) {
-        final data = json.decode(utf8.decode(response.bodyBytes));
-        final text =
-            data['choices'][0]['message']['content'] as String;
-        _history.add({'role': 'assistant', 'content': text});
-        return text;
-      } else {
-        _history.removeLast();
-        final errorBody = json.decode(utf8.decode(response.bodyBytes));
-        final errorMsg =
-            errorBody['error']?['message'] ?? '알 수 없는 오류';
-        return '⚠️ API 오류 (${response.statusCode}): $errorMsg';
+      // Function calling loop (max 5 rounds)
+      int rounds = 0;
+      while (choice['finish_reason'] == 'tool_calls' && rounds < 5) {
+        rounds++;
+
+        messages.add(assistantMessage);
+
+        final toolCalls = assistantMessage['tool_calls'] as List<dynamic>;
+        for (final toolCall in toolCalls) {
+          final fnName = toolCall['function']['name'] as String;
+          final fnArgs =
+              json.decode(toolCall['function']['arguments'] as String)
+                  as Map<String, dynamic>;
+
+          final result = TaxCalculator.executeFunction(fnName, fnArgs);
+
+          messages.add({
+            'role': 'tool',
+            'tool_call_id': toolCall['id'],
+            'content': result,
+          });
+        }
+
+        data = await _callApi(messages);
+        choice = data['choices'][0];
+        assistantMessage = choice['message'];
       }
+
+      final text = assistantMessage['content'] as String? ?? '';
+      _history.add({'role': 'assistant', 'content': text});
+      return text;
     } catch (e) {
       _history.removeLast();
+      if (e is Exception) {
+        final msg = e.toString().replaceFirst('Exception: ', '');
+        if (msg.contains('API 오류')) return '⚠️ $msg';
+      }
       return '⚠️ 네트워크 오류: 인터넷 연결을 확인해주세요.\n\n$e';
     }
   }
