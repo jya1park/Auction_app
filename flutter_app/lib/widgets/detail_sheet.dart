@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../screens/tax_chat_screen.dart';
 
 /// 마커 탭 시 하단에서 올라오는 상세정보 시트
 class DetailSheet extends StatelessWidget {
@@ -193,6 +194,32 @@ class DetailSheet extends StatelessWidget {
       if (court.isNotEmpty) _infoTile(Icons.account_balance, '법원', court),
       _infoTile(Icons.event, '매각기일', saleDate),
       if (note.isNotEmpty) _infoTile(Icons.info_outline, '비고', note),
+
+      const SizedBox(height: 16),
+      Builder(
+        builder: (ctx) => SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: () {
+              Navigator.pop(ctx);
+              Navigator.push(
+                ctx,
+                MaterialPageRoute(
+                  builder: (_) => TaxChatScreen(property: data),
+                ),
+              );
+            },
+            icon: const Icon(Icons.support_agent),
+            label: const Text('이 물건 세금 상담'),
+            style: ElevatedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+        ),
+      ),
     ];
   }
 

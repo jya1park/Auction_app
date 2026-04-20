@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'map_screen.dart';
 import 'list_screen.dart';
+import 'tax_chat_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -21,6 +22,14 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: _screens[_currentIndex],
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const TaxChatScreen()),
+        ),
+        icon: const Icon(Icons.support_agent),
+        label: const Text('세금상담'),
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
         onDestinationSelected: (index) {
