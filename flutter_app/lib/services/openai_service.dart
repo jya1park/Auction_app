@@ -1,11 +1,12 @@
 import 'dart:convert';
 import 'package:flutter/services.dart' show rootBundle;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 
 class OpenAIService {
   static const _model = 'gpt-4o';
   static const _apiUrl = 'https://api.openai.com/v1/chat/completions';
-  static const _apiKey = String.fromEnvironment('OPENAI_API_KEY');
+  static final _apiKey = dotenv.env['OPENAI_API_KEY'] ?? '';
   static const _maxTokens = 2048;
 
   final List<Map<String, String>> _history = [];
@@ -128,7 +129,7 @@ class OpenAIService {
   Future<String> sendMessage(String message) async {
     if (!hasApiKey) {
       return '⚠️ API 키가 설정되지 않았습니다.\n\n'
-          'flutter run --dart-define=OPENAI_API_KEY=sk-... 으로 실행해주세요.';
+          'flutter_app/.env 파일에 OPENAI_API_KEY=sk-... 를 입력해주세요.';
     }
 
     await loadKnowledgeBase();

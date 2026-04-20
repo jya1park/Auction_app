@@ -16,6 +16,7 @@ dependencies:
   intl: ^0.19.0
   cupertino_icons: ^1.0.8
   http: ^1.2.0
+  flutter_dotenv: ^5.2.1
 
 dev_dependencies:
   flutter_test:
@@ -31,6 +32,7 @@ flutter_launcher_icons:
 flutter:
   uses-material-design: true
   assets:
+    - .env
     - assets/kakao_map.html
     - assets/tax_knowledge/
     - icon.png
