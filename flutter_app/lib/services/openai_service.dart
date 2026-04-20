@@ -6,8 +6,9 @@ import 'package:http/http.dart' as http;
 class OpenAIService {
   static const _model = 'gpt-5.4-nano';
   static const _apiUrl = 'https://api.openai.com/v1/chat/completions';
-  static final _apiKey = dotenv.env['OPENAI_API_KEY'] ?? '';
   static const _maxTokens = 2048;
+
+  static String get _apiKey => dotenv.env['OPENAI_API_KEY'] ?? '';
 
   final List<Map<String, String>> _history = [];
   Map<String, dynamic>? _propertyContext;
