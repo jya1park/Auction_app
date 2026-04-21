@@ -7,7 +7,6 @@ import 'tax_calculator.dart';
 class OpenAIService {
   static const _model = 'gpt-5-nano';
   static const _apiUrl = 'https://api.openai.com/v1/chat/completions';
-  static const _maxTokens = 2048;
 
   static String get _apiKey => dotenv.env['OPENAI_API_KEY'] ?? '';
 
@@ -20,10 +19,10 @@ class OpenAIService {
   bool? _isPropertyRegulated;
 
   static const _docDescriptions = {
-    '01_취득세.md': '취득세 세율표, 다주택 중과, 경매 과세표준, 부가세, 인지세',
-    '02_양도소득세.md': '양도소득세 세율, 장기보유공제, 비과세 요건, 경매 취득가액',
-    '03_경매절차.md': '입찰·낙찰·잔금·등기·명도 절차, 권리분석, 배당순위',
-    '04_주택임대차보호법.md': '대항력, 확정일자, 우선변제권, 소액임차인, 배당순위, 권리분석',
+    '01_취득세.md': '취득세 세율, 다주택 중과, 부가세, 인지세',
+    '02_양도소득세.md': '양도소득세, 장기보유공제, 비과세',
+    '03_경매절차.md': '입찰·낙찰·명도 절차, 권리분석',
+    '04_주택임대차보호법.md': '대항력, 우선변제권, 소액임차인, 배당',
   };
 
   bool get hasApiKey => _apiKey.isNotEmpty;
@@ -62,54 +61,48 @@ class OpenAIService {
     return false;
   }
 
+  // --- LLM 라우터: 질문에 맞는 문서 1개 선택 ---
   Future<String?> _routeDocument(String query) async {
     final docList = _docDescriptions.entries
-        .map((e) => '- ${e.key}: ${e.value}')
+        .map((e) => '${e.key}: ${e.value}')
         .join('\n');
 
-    final routerMessages = <Map<String, dynamic>>[
+    final data = await _callApi([
       {
         'role': 'system',
-        'content':
-            '사용자 질문에 가장 관련 있는 문서 파일명을 1개만 답하세요. 관련 없으면 "none"이라고 답하세요.\n\n문서 목록:\n$docList',
+        'content': '문서 중 질문에 맞는 파일명 1개만 답하세요. 없으면 none.\n$docList',
       },
       {'role': 'user', 'content': query},
-    ];
+    ]);
 
-    final data = await _callApi(routerMessages);
-    final choices = data['choices'];
-    if (choices == null || (choices as List).isEmpty) return null;
-
-    final text =
-        ((choices as List)[0]['message']['content'] as String?)?.trim() ?? '';
-
+    final text = _extractText(data);
     for (final file in _docDescriptions.keys) {
       if (text.contains(file)) return file;
     }
-
     if (text.contains('01')) return '01_취득세.md';
     if (text.contains('02')) return '02_양도소득세.md';
     if (text.contains('03')) return '03_경매절차.md';
     if (text.contains('04')) return '04_주택임대차보호법.md';
-
     return null;
   }
 
-  String _buildSystemPrompt(String? docContent) {
+  // --- 시스템 프롬프트 ---
+  String _buildSystemPrompt({String? ragDoc, bool withToolHint = false}) {
     final buffer = StringBuffer();
 
     buffer.writeln('당신은 한국 부동산 세금·경매 법률 전문 상담사입니다.');
-    buffer.writeln('규칙: 한국어로 답변. 금액은 만원/억원 단위. 핵심만 간결하게 답변. 불필요한 설명이나 반복 금지. 계산 결과는 표 형태로 정리.');
+    buffer.write('규칙: 한국어. 금액은 만원/억원 단위. 핵심만 간결하게. 반복 금지.');
+    if (withToolHint) {
+      buffer.writeln(' 세금 계산이 필요하면 제공된 계산기 함수를 호출하세요.');
+    } else {
+      buffer.writeln(' 계산 결과는 표 형태로 정리.');
+    }
 
-    if (docContent != null) {
+    if (ragDoc != null) {
       buffer.writeln();
       buffer.writeln('## 참고 자료');
-      if (docContent.length > 1500) {
-        buffer.writeln(docContent.substring(0, 1500));
-        buffer.writeln('...(이하 생략)');
-      } else {
-        buffer.writeln(docContent);
-      }
+      buffer.writeln(
+          ragDoc.length > 1500 ? '${ragDoc.substring(0, 1500)}\n...' : ragDoc);
     }
 
     if (_propertyContext != null) {
@@ -117,7 +110,6 @@ class OpenAIService {
       buffer.writeln('## 상담 물건');
       final p = _propertyContext!;
       if (p['아파트명'] != null) buffer.writeln('- 물건명: ${p['아파트명']}');
-      if (p['동명'] != null) buffer.writeln('- 동: ${p['동명']}');
       final address = (p['주소'] ?? p['소재지'])?.toString();
       if (address != null) buffer.writeln('- 주소: $address');
       final usage = p['용도'] ?? p['물건종류'];
@@ -125,22 +117,16 @@ class OpenAIService {
       if (p['전용면적'] != null) buffer.writeln('- 전용면적: ${p['전용면적']}㎡');
       if (p['감정가'] != null) buffer.writeln('- 감정가: ${_formatWon(p['감정가'])}');
       if (p['매각금액'] != null) buffer.writeln('- 낙찰가: ${_formatWon(p['매각금액'])}');
-      if (p['매각결과'] != null) buffer.writeln('- 매각결과: ${p['매각결과']}');
-      if (p['사건번호'] != null) buffer.writeln('- 사건번호: ${p['사건번호']}');
 
       if (_isPropertyRegulated != null) {
         final reg = _isPropertyRegulated!;
-        buffer.writeln('- 조정대상지역: ${reg ? "✅ 해당" : "❌ 비해당"}');
-        if (reg) {
-          buffer.writeln('  → 취득세: 2주택 8%, 3주택 12%');
-          buffer.writeln('  → 양도세: 2주택 기본+20%p, 3주택 기본+30%p');
-          buffer.writeln('  → 장기보유특별공제: 중과 시 적용 불가');
-        } else {
-          buffer.writeln('  → 취득세: 2주택 일반세율(1~3%), 3주택 8%');
-          buffer.writeln('  → 양도세: 중과 미적용 (기본세율)');
+        buffer.writeln('- 조정대상지역: ${reg ? "해당" : "비해당"}');
+        buffer.writeln(reg
+            ? '  취득세: 2주택8%/3주택12%, 양도세: 2주택+20%p/3주택+30%p'
+            : '  취득세: 2주택 일반(1~3%)/3주택8%, 양도세: 기본세율');
+        if (withToolHint) {
+          buffer.writeln('  계산기 호출 시 is_regulated_area=$reg');
         }
-        buffer.writeln(
-            '계산기 호출 시 is_regulated_area=$reg로 설정하세요.');
       }
     }
 
@@ -164,12 +150,16 @@ class OpenAIService {
     return '${amount.round()}원';
   }
 
+  // --- API 호출 ---
   Future<Map<String, dynamic>> _callApi(
-      List<Map<String, dynamic>> messages) async {
-    final body = json.encode({
+    List<Map<String, dynamic>> messages, {
+    List<Map<String, dynamic>>? tools,
+  }) async {
+    final payload = <String, dynamic>{
       'model': _model,
       'messages': messages,
-    });
+    };
+    if (tools != null) payload['tools'] = tools;
 
     final response = await http.post(
       Uri.parse(_apiUrl),
@@ -177,7 +167,7 @@ class OpenAIService {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $_apiKey',
       },
-      body: body,
+      body: json.encode(payload),
     );
 
     if (response.statusCode == 200) {
@@ -185,13 +175,29 @@ class OpenAIService {
     } else {
       final errorBody = json.decode(utf8.decode(response.bodyBytes));
       throw Exception(
-          'API 오류 (${response.statusCode}): ${errorBody['error']?['message'] ?? '알 수 없는 오류'}');
+          'API ${response.statusCode}: ${errorBody['error']?['message'] ?? ''}');
     }
   }
 
+  String _extractText(Map<String, dynamic> data) {
+    final choices = data['choices'];
+    if (choices == null || (choices as List).isEmpty) return '';
+    final msg = (choices as List)[0]['message'] as Map<String, dynamic>;
+    return (msg['content'] as String?) ?? '';
+  }
+
+  Map<String, dynamic>? _extractToolCalls(Map<String, dynamic> data) {
+    final choices = data['choices'];
+    if (choices == null || (choices as List).isEmpty) return null;
+    final msg = (choices as List)[0]['message'] as Map<String, dynamic>;
+    if (msg['tool_calls'] != null) return msg;
+    return null;
+  }
+
+  // --- 메인 메시지 처리 ---
   Future<String> sendMessage(String message) async {
     if (!hasApiKey) {
-      return '⚠️ API 키가 설정되지 않았습니다.\n\n'
+      return '⚠️ API 키가 설정되지 않았습니다.\n'
           'flutter_app/.env 파일에 OPENAI_API_KEY=sk-... 를 입력해주세요.';
     }
 
@@ -203,37 +209,97 @@ class OpenAIService {
       _isPropertyRegulated = _checkRegulatedArea(address);
     }
 
+    // 1단계: LLM 라우터 → 문서 1개 선택
+    String? ragDoc;
+    try {
+      final file = await _routeDocument(message);
+      if (file != null) ragDoc = _docCache[file];
+    } catch (_) {}
+
     _history.add({'role': 'user', 'content': message});
 
-    // 시스템 프롬프트 (물건 정보 + 조정대상지역만, RAG 없음)
-    final systemPrompt = _buildSystemPrompt(null);
-
-    final messages = <Map<String, dynamic>>[
-      {'role': 'system', 'content': systemPrompt},
-      ..._history,
-    ];
-
     try {
-      final data = await _callApi(messages);
-      final choices = data['choices'];
-      if (choices == null || (choices as List).isEmpty) {
-        _history.removeLast();
-        return '⚠️ API 응답이 비어있습니다.\n\n$data';
+      // 2단계: RAG + Function Calling 시도
+      var text = await _tryWithToolsAndRag(ragDoc);
+
+      // 3단계: 실패 시 RAG만 (tools 없이)
+      if (text.isEmpty) {
+        text = await _tryPlain(ragDoc);
       }
 
-      final assistantMessage =
-          (choices as List)[0]['message'] as Map<String, dynamic>;
-      final text = (assistantMessage['content'] as String?) ?? '';
+      // 4단계: 그래도 실패 시 RAG도 제거
+      if (text.isEmpty) {
+        text = await _tryPlain(null);
+      }
 
       if (text.isEmpty) {
         _history.removeLast();
-        return '⚠️ AI 응답이 비어있습니다.\n\n전체: ${json.encode(data)}';
+        return '⚠️ AI 응답을 받지 못했습니다. 다시 시도해주세요.';
       }
+
       _history.add({'role': 'assistant', 'content': text});
       return text;
     } catch (e) {
       if (_history.isNotEmpty) _history.removeLast();
-      return '⚠️ 오류 발생: $e';
+      return '⚠️ 오류: $e';
+    }
+  }
+
+  // tools + RAG 시도
+  Future<String> _tryWithToolsAndRag(String? ragDoc) async {
+    try {
+      final prompt = _buildSystemPrompt(ragDoc: ragDoc, withToolHint: true);
+      final messages = <Map<String, dynamic>>[
+        {'role': 'system', 'content': prompt},
+        ..._history,
+      ];
+
+      var data = await _callApi(messages,
+          tools: TaxCalculator.toolDefinitions.cast<Map<String, dynamic>>());
+
+      // Function Calling 루프
+      var toolMsg = _extractToolCalls(data);
+      int rounds = 0;
+      while (toolMsg != null && rounds < 3) {
+        rounds++;
+        messages.add(Map<String, dynamic>.from(toolMsg));
+
+        final toolCalls = toolMsg['tool_calls'] as List<dynamic>;
+        for (final tc in toolCalls) {
+          final fn = tc['function'] as Map<String, dynamic>;
+          final result = TaxCalculator.executeFunction(
+            fn['name'] as String,
+            json.decode(fn['arguments'] as String) as Map<String, dynamic>,
+          );
+          messages.add({
+            'role': 'tool',
+            'tool_call_id': tc['id'],
+            'content': result,
+          });
+        }
+
+        data = await _callApi(messages);
+        toolMsg = _extractToolCalls(data);
+      }
+
+      return _extractText(data);
+    } catch (_) {
+      return '';
+    }
+  }
+
+  // tools 없이 시도
+  Future<String> _tryPlain(String? ragDoc) async {
+    try {
+      final prompt = _buildSystemPrompt(ragDoc: ragDoc);
+      final messages = <Map<String, dynamic>>[
+        {'role': 'system', 'content': prompt},
+        ..._history,
+      ];
+      final data = await _callApi(messages);
+      return _extractText(data);
+    } catch (_) {
+      return '';
     }
   }
 
