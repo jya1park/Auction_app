@@ -76,7 +76,7 @@ class OpenAIService {
       {'role': 'user', 'content': query},
     ];
 
-    final data = await _callApi(routerMessages, withTools: false, maxTokens: 50);
+    final data = await _callApi(routerMessages);
     final choices = data['choices'];
     if (choices == null || (choices as List).isEmpty) return null;
 
