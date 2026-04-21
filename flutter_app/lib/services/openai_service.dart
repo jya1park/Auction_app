@@ -68,6 +68,8 @@ class OpenAIService {
     return false;
   }
 
+  static const _maxRagChars = 4000;
+
   List<String> _retrieveRelevantDocs(String query) {
     final matchedFiles = <String>{};
 
@@ -78,13 +80,28 @@ class OpenAIService {
     }
 
     if (matchedFiles.isEmpty) {
-      return _docCache.values.toList();
+      return [];
     }
 
-    return matchedFiles
+    final docs = matchedFiles
         .map((f) => _docCache[f] ?? '')
         .where((d) => d.isNotEmpty)
         .toList();
+
+    final result = <String>[];
+    var totalLen = 0;
+    for (final doc in docs) {
+      if (totalLen + doc.length > _maxRagChars) {
+        final remaining = _maxRagChars - totalLen;
+        if (remaining > 500) {
+          result.add('${doc.substring(0, remaining)}\n...(이하 생략)');
+        }
+        break;
+      }
+      result.add(doc);
+      totalLen += doc.length;
+    }
+    return result;
   }
 
   String _buildSystemPrompt(List<String> docs) {
