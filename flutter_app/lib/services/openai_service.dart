@@ -5,7 +5,7 @@ import 'package:http/http.dart' as http;
 import 'tax_calculator.dart';
 
 class OpenAIService {
-  static const _model = 'gpt-4.1-nano';
+  static const _model = 'gpt-5-nano';
   static const _apiUrl = 'https://api.openai.com/v1/chat/completions';
   static const _maxTokens = 2048;
 
