@@ -103,8 +103,8 @@ class OpenAIService {
       if (p['아파트명'] != null) buffer.writeln('- ${p['아파트명']}');
       final addr = (p['주소'] ?? p['소재지'])?.toString();
       if (addr != null) buffer.writeln('- 주소: $addr');
-      if (p['용도'] ?? p['물건종류'] != null)
-        buffer.writeln('- 용도: ${p['용도'] ?? p['물건종류']}');
+      final usage = p['용도'] ?? p['물건종류'];
+      if (usage != null) buffer.writeln('- 용도: $usage');
       if (p['전용면적'] != null) buffer.writeln('- ${p['전용면적']}㎡');
       if (p['감정가'] != null) buffer.writeln('- 감정가: ${_formatWon(p['감정가'])}');
       if (p['매각금액'] != null) buffer.writeln('- 낙찰가: ${_formatWon(p['매각금액'])}');
