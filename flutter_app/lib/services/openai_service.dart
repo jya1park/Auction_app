@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
+import 'tax_calculator.dart';
 
 class OpenAIService {
   static const _model = 'gpt-5-nano';
@@ -87,7 +88,7 @@ class OpenAIService {
     final buffer = StringBuffer();
 
     buffer.writeln('한국 부동산 세금·경매 법률 전문 상담사.');
-    buffer.writeln('규칙: 핵심만 간결하게 답변. 금액은 만원/억원 단위. 표 형태로 정리. 불필요한 설명 금지.');
+    buffer.writeln('규칙: 핵심만 간결하게. 금액은 만원/억원 단위. 표 형태로 정리. 계산 결과에는 적용 세율과 산출 근거를 한 줄씩 간단히 설명.');
 
     if (ragDoc != null && ragDoc.isNotEmpty) {
       final trimmed = ragDoc.length > 1500
@@ -104,25 +105,46 @@ class OpenAIService {
       if (addr != null) buffer.writeln('- 주소: $addr');
       final usage = p['용도'] ?? p['물건종류'];
       if (usage != null) buffer.writeln('- 용도: $usage');
-      if (p['전용면적'] != null) buffer.writeln('- ${p['전용면적']}㎡');
+      final area = _parseNum(p['전용면적']);
+      if (area != null) buffer.writeln('- ${area}㎡');
       if (p['감정가'] != null) buffer.writeln('- 감정가: ${_formatWon(p['감정가'])}');
-      if (p['매각금액'] != null) buffer.writeln('- 낙찰가: ${_formatWon(p['매각금액'])}');
-    }
+      final salePrice = _parseNum(p['매각금액']);
+      if (salePrice != null) buffer.writeln('- 낙찰가: ${_formatWon(salePrice)}');
 
-    // 조정대상지역 세금 영향 (항상 포함)
-    if (_isPropertyRegulated != null) {
-      final reg = _isPropertyRegulated!;
-      buffer.writeln('\n## 조정대상지역: ${reg ? "해당" : "비해당"}');
+      final reg = _isPropertyRegulated ?? false;
+      buffer.writeln('- 조정대상지역: ${reg ? "해당" : "비해당"}');
+
+      // Dart 계산기로 미리 계산한 세금 결과
+      if (salePrice != null && salePrice > 0) {
+        final tax = TaxCalculator.calculateAcquisitionTax(
+          price: salePrice.toInt(),
+          isRegulatedArea: reg,
+          areaSqm: area ?? 84.0,
+        );
+        buffer.writeln('\n## 1주택 기준 취득세 (계산기 산출, 정확한 값)');
+        buffer.writeln(tax['breakdown']);
+
+        final total = TaxCalculator.calculateTotalCost(
+          salePrice: salePrice.toInt(),
+          isRegulatedArea: reg,
+          areaSqm: area ?? 84.0,
+        );
+        buffer.writeln('\n## 총 비용 (계산기 산출)');
+        buffer.writeln(total['breakdown']);
+      }
+
       if (reg) {
-        buffer.writeln('- 취득세: 1주택 1~3%, 2주택 8%, 3주택 12%');
-        buffer.writeln('- 양도세: 2주택 기본+20%p, 3주택 기본+30%p, 장특공제 불가');
-      } else {
-        buffer.writeln('- 취득세: 1주택 1~3%, 2주택 1~3%, 3주택 8%');
-        buffer.writeln('- 양도세: 기본세율, 장특공제 적용 가능');
+        buffer.writeln('\n※ 다주택 중과: 2주택 8%, 3주택 12% (조정대상지역)');
       }
     }
 
     return buffer.toString();
+  }
+
+  double? _parseNum(dynamic value) {
+    if (value == null) return null;
+    if (value is num) return value.toDouble();
+    return double.tryParse(value.toString().replaceAll(',', ''));
   }
 
   String _formatWon(dynamic value) {
