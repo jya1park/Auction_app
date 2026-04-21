@@ -90,28 +90,14 @@ class OpenAIService {
   String _buildSystemPrompt(List<String> docs) {
     final buffer = StringBuffer();
 
-    buffer.writeln('당신은 한국 부동산 세금 전문가이자 경매 법률 상담사입니다.');
-    buffer.writeln('주택임대차보호법, 권리분석, 대항력, 배당순위, 소액임차인 등 경매 관련 법률에 정통합니다.');
-    buffer.writeln();
-    buffer.writeln('## 규칙');
-    buffer.writeln('- 항상 한국어로 응답하세요.');
-    buffer.writeln('- 금액은 "만원" 또는 "억원" 단위로 읽기 쉽게 표시하세요.');
-    buffer.writeln('- 세금 계산이 필요하면 반드시 제공된 계산기 함수를 호출하세요. 직접 계산하지 마세요.');
-    buffer.writeln('- 계산기 결과의 breakdown을 활용하여 단계별 과정을 보여주세요.');
-    buffer.writeln('- 각 세금 항목이 왜 그 금액인지 계산 로직을 설명하세요. (예: "낙찰가 9억은 6~9억 구간이므로 세율 (9×2/3-3)=3%")');
-    buffer.writeln('- 적용된 세율, 공제, 과세표준 산출 근거를 함께 안내하세요.');
-    buffer.writeln('- 가정이 필요한 경우 (주택 수 등) 명시적으로 안내하세요.');
-    buffer.writeln('- 아래 제공된 세법 자료를 기반으로 정확하게 답변하세요.');
-    buffer.writeln('- 확실하지 않은 내용은 전문가 상담을 권유하세요.');
-
-    buffer.writeln();
-    buffer.writeln('## 조정대상지역 (2025년 기준)');
-    buffer.writeln('현재 조정대상지역: ${_regulatedAreas.join(", ")}');
-    buffer.writeln('위 지역 외는 비조정지역입니다.');
+    buffer.writeln('당신은 한국 부동산 세금·경매 법률 전문 상담사입니다.');
+    buffer.writeln('한국어로 답변. 금액은 만원/억원 단위. 세금 계산 시 계산기 함수를 호출하세요.');
+    buffer.writeln('계산 근거(세율, 공제, 과세표준)를 단계별로 설명하세요.');
+    buffer.writeln('확실하지 않으면 전문가 상담을 권유하세요.');
 
     if (docs.isNotEmpty) {
       buffer.writeln();
-      buffer.writeln('## 참고 세법 자료');
+      buffer.writeln('## 참고 자료');
       for (final doc in docs) {
         buffer.writeln(doc);
         buffer.writeln();
@@ -178,7 +164,6 @@ class OpenAIService {
     final payload = <String, dynamic>{
       'model': _model,
       'max_completion_tokens': _maxTokens,
-      'temperature': 1,
       'messages': messages,
     };
     if (withTools) {
