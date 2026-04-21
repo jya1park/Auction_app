@@ -14,30 +14,24 @@ class OpenAIService {
   final List<Map<String, dynamic>> _history = [];
   Map<String, dynamic>? _propertyContext;
 
-  Map<String, List<String>> _keywordIndex = {};
   Map<String, String> _docCache = {};
   List<String> _regulatedAreas = [];
   bool _loaded = false;
   bool? _isPropertyRegulated;
+
+  static const _docDescriptions = {
+    '01_취득세.md': '취득세 세율표, 다주택 중과, 경매 과세표준, 부가세, 인지세',
+    '02_양도소득세.md': '양도소득세 세율, 장기보유공제, 비과세 요건, 경매 취득가액',
+    '03_경매절차.md': '입찰·낙찰·잔금·등기·명도 절차, 권리분석, 배당순위',
+    '04_주택임대차보호법.md': '대항력, 확정일자, 우선변제권, 소액임차인, 배당순위, 권리분석',
+  };
 
   bool get hasApiKey => _apiKey.isNotEmpty;
 
   Future<void> loadKnowledgeBase() async {
     if (_loaded) return;
 
-    final indexJson =
-        await rootBundle.loadString('assets/tax_knowledge/00_index.json');
-    final Map<String, dynamic> parsed = json.decode(indexJson);
-    _keywordIndex = parsed.map(
-      (key, value) => MapEntry(key, (value as List).cast<String>()),
-    );
-
-    final allFiles = <String>{};
-    for (final files in _keywordIndex.values) {
-      allFiles.addAll(files);
-    }
-
-    for (final file in allFiles) {
+    for (final file in _docDescriptions.keys) {
       _docCache[file] =
           await rootBundle.loadString('assets/tax_knowledge/$file');
     }
@@ -68,62 +62,59 @@ class OpenAIService {
     return false;
   }
 
-  static const _maxRagChars = 4000;
+  Future<String?> _routeDocument(String query) async {
+    final docList = _docDescriptions.entries
+        .map((e) => '- ${e.key}: ${e.value}')
+        .join('\n');
 
-  List<String> _retrieveRelevantDocs(String query) {
-    final matchedFiles = <String>{};
+    final routerMessages = <Map<String, dynamic>>[
+      {
+        'role': 'system',
+        'content':
+            '사용자 질문에 가장 관련 있는 문서 파일명을 1개만 답하세요. 관련 없으면 "none"이라고 답하세요.\n\n문서 목록:\n$docList',
+      },
+      {'role': 'user', 'content': query},
+    ];
 
-    for (final entry in _keywordIndex.entries) {
-      if (query.contains(entry.key)) {
-        matchedFiles.addAll(entry.value);
-      }
+    final data = await _callApi(routerMessages, withTools: false, maxTokens: 50);
+    final choices = data['choices'];
+    if (choices == null || (choices as List).isEmpty) return null;
+
+    final text =
+        ((choices as List)[0]['message']['content'] as String?)?.trim() ?? '';
+
+    for (final file in _docDescriptions.keys) {
+      if (text.contains(file)) return file;
     }
 
-    if (matchedFiles.isEmpty) {
-      return [];
-    }
+    if (text.contains('01')) return '01_취득세.md';
+    if (text.contains('02')) return '02_양도소득세.md';
+    if (text.contains('03')) return '03_경매절차.md';
+    if (text.contains('04')) return '04_주택임대차보호법.md';
 
-    final docs = matchedFiles
-        .map((f) => _docCache[f] ?? '')
-        .where((d) => d.isNotEmpty)
-        .toList();
-
-    final result = <String>[];
-    var totalLen = 0;
-    for (final doc in docs) {
-      if (totalLen + doc.length > _maxRagChars) {
-        final remaining = _maxRagChars - totalLen;
-        if (remaining > 500) {
-          result.add('${doc.substring(0, remaining)}\n...(이하 생략)');
-        }
-        break;
-      }
-      result.add(doc);
-      totalLen += doc.length;
-    }
-    return result;
+    return null;
   }
 
-  String _buildSystemPrompt(List<String> docs) {
+  String _buildSystemPrompt(String? docContent) {
     final buffer = StringBuffer();
 
     buffer.writeln('당신은 한국 부동산 세금·경매 법률 전문 상담사입니다.');
-    buffer.writeln('한국어로 답변. 금액은 만원/억원 단위. 세금 계산 시 계산기 함수를 호출하세요.');
-    buffer.writeln('계산 근거(세율, 공제, 과세표준)를 단계별로 설명하세요.');
-    buffer.writeln('확실하지 않으면 전문가 상담을 권유하세요.');
+    buffer.writeln('한국어로 답변. 금액은 만원/억원 단위. 계산 근거를 단계별로 설명하세요.');
 
-    if (docs.isNotEmpty) {
+    if (docContent != null) {
       buffer.writeln();
       buffer.writeln('## 참고 자료');
-      for (final doc in docs) {
-        buffer.writeln(doc);
-        buffer.writeln();
+      if (docContent.length > 4000) {
+        buffer.writeln(docContent.substring(0, 4000));
+        buffer.writeln('...(이하 생략)');
+      } else {
+        buffer.writeln(docContent);
       }
     }
 
     if (_propertyContext != null) {
       buffer.writeln();
-      buffer.writeln('## 현재 상담 중인 물건 정보');
+      buffer.writeln('## 상담 물건');
       final p = _propertyContext!;
       if (p['아파트명'] != null) buffer.writeln('- 물건명: ${p['아파트명']}');
       if (p['동명'] != null) buffer.writeln('- 동: ${p['동명']}');
@@ -132,24 +123,14 @@ class OpenAIService {
       final usage = p['용도'] ?? p['물건종류'];
       if (usage != null) buffer.writeln('- 용도: $usage');
       if (p['전용면적'] != null) buffer.writeln('- 전용면적: ${p['전용면적']}㎡');
-      if (p['감정가'] != null) {
-        buffer.writeln('- 감정가: ${_formatWon(p['감정가'])}');
-      }
-      if (p['매각금액'] != null) {
-        buffer.writeln('- 낙찰가(매각금액): ${_formatWon(p['매각금액'])}');
-      }
+      if (p['감정가'] != null) buffer.writeln('- 감정가: ${_formatWon(p['감정가'])}');
+      if (p['매각금액'] != null) buffer.writeln('- 낙찰가: ${_formatWon(p['매각금액'])}');
       if (p['매각결과'] != null) buffer.writeln('- 매각결과: ${p['매각결과']}');
       if (p['사건번호'] != null) buffer.writeln('- 사건번호: ${p['사건번호']}');
-      if (p['법원'] != null) buffer.writeln('- 법원: ${p['법원']}');
 
       if (_isPropertyRegulated != null) {
         buffer.writeln(
-            '- 조정대상지역: ${_isPropertyRegulated! ? "✅ 해당 (중과세율 적용)" : "❌ 비해당 (일반세율 적용)"}');
-      }
-
-      buffer.writeln();
-      buffer.writeln('사용자가 "이 물건"이라고 하면 위 물건을 기준으로 답변하세요.');
-      if (_isPropertyRegulated != null) {
+            '- 조정대상지역: ${_isPropertyRegulated! ? "해당" : "비해당"}');
         buffer.writeln(
             '계산기 호출 시 is_regulated_area=${_isPropertyRegulated!}로 설정하세요.');
       }
@@ -177,10 +158,10 @@ class OpenAIService {
 
   Future<Map<String, dynamic>> _callApi(
       List<Map<String, dynamic>> messages,
-      {bool withTools = true}) async {
+      {bool withTools = true, int? maxTokens}) async {
     final payload = <String, dynamic>{
       'model': _model,
-      'max_completion_tokens': _maxTokens,
+      'max_completion_tokens': maxTokens ?? _maxTokens,
       'messages': messages,
     };
     if (withTools) {
@@ -220,8 +201,19 @@ class OpenAIService {
       _isPropertyRegulated = _checkRegulatedArea(address);
     }
 
-    final docs = _retrieveRelevantDocs(message);
-    final systemPrompt = _buildSystemPrompt(docs);
+    // 1단계: LLM 라우터 - 질문에 맞는 문서 1개 선택
+    String? docContent;
+    try {
+      final selectedFile = await _routeDocument(message);
+      if (selectedFile != null) {
+        docContent = _docCache[selectedFile];
+      }
+    } catch (_) {
+      // 라우터 실패 시 문서 없이 진행
+    }
+
+    // 2단계: 선택된 문서로 시스템 프롬프트 구성
+    final systemPrompt = _buildSystemPrompt(docContent);
 
     _history.add({'role': 'user', 'content': message});
 
@@ -231,20 +223,21 @@ class OpenAIService {
     ];
 
     try {
+      // 3단계: 메인 API 호출 (tools 포함)
       var data = await _callApi(messages);
       final choices = data['choices'];
       if (choices == null || (choices as List).isEmpty) {
         _history.removeLast();
-        return '⚠️ API 응답이 비어있습니다. 모델($_model)을 확인해주세요.\n\n응답: $data';
+        return '⚠️ API 응답이 비어있습니다.';
       }
 
       var assistantMessage =
           (choices as List)[0]['message'] as Map<String, dynamic>;
 
+      // 4단계: Function Calling 루프
       int rounds = 0;
       while (assistantMessage['tool_calls'] != null && rounds < 5) {
         rounds++;
-
         messages.add(Map<String, dynamic>.from(assistantMessage));
 
         final toolCalls = assistantMessage['tool_calls'] as List<dynamic>;
@@ -253,9 +246,7 @@ class OpenAIService {
           final fnName = fn['name'] as String;
           final fnArgs =
               json.decode(fn['arguments'] as String) as Map<String, dynamic>;
-
           final result = TaxCalculator.executeFunction(fnName, fnArgs);
-
           messages.add({
             'role': 'tool',
             'tool_call_id': toolCall['id'],
@@ -270,6 +261,7 @@ class OpenAIService {
 
       var text = (assistantMessage['content'] as String?) ?? '';
 
+      // 5단계: 빈 응답 시 tools 없이 재시도
       if (text.isEmpty) {
         final retryMessages = <Map<String, dynamic>>[
           {'role': 'system', 'content': systemPrompt},
@@ -283,7 +275,7 @@ class OpenAIService {
 
       if (text.isEmpty) {
         _history.removeLast();
-        return '⚠️ AI 응답이 비어있습니다. 다시 질문해주세요.';
+        return '⚠️ AI 응답이 비어있습니다. 질문을 짧게 다시 해주세요.';
       }
       _history.add({'role': 'assistant', 'content': text});
       return text;
