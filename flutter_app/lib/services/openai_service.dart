@@ -231,8 +231,8 @@ class OpenAIService {
     ];
 
     try {
-      // 3단계: 메인 API 호출 (tools 포함)
-      var data = await _callApi(messages);
+      // 3단계: tools 없이 먼저 시도 (nano 모델 호환)
+      var data = await _callApi(messages, withTools: false);
       final choices = data['choices'];
       if (choices == null || (choices as List).isEmpty) {
         _history.removeLast();
@@ -241,35 +241,9 @@ class OpenAIService {
 
       var assistantMessage =
           (choices as List)[0]['message'] as Map<String, dynamic>;
-
-      // 4단계: Function Calling 루프
-      int rounds = 0;
-      while (assistantMessage['tool_calls'] != null && rounds < 5) {
-        rounds++;
-        messages.add(Map<String, dynamic>.from(assistantMessage));
-
-        final toolCalls = assistantMessage['tool_calls'] as List<dynamic>;
-        for (final toolCall in toolCalls) {
-          final fn = toolCall['function'] as Map<String, dynamic>;
-          final fnName = fn['name'] as String;
-          final fnArgs =
-              json.decode(fn['arguments'] as String) as Map<String, dynamic>;
-          final result = TaxCalculator.executeFunction(fnName, fnArgs);
-          messages.add({
-            'role': 'tool',
-            'tool_call_id': toolCall['id'],
-            'content': result,
-          });
-        }
-
-        data = await _callApi(messages);
-        assistantMessage =
-            (data['choices'] as List)[0]['message'] as Map<String, dynamic>;
-      }
-
       var text = (assistantMessage['content'] as String?) ?? '';
 
-      // 5단계: 빈 응답 시 tools + RAG 없이 최소 프롬프트로 재시도
+      // 4단계: 빈 응답이면 RAG 줄여서 재시도
       if (text.isEmpty) {
         final minimalPrompt = _buildSystemPrompt(null);
         final retryMessages = <Map<String, dynamic>>[
@@ -284,7 +258,7 @@ class OpenAIService {
 
       if (text.isEmpty) {
         _history.removeLast();
-        return '⚠️ AI 응답이 비어있습니다. 질문을 짧게 다시 해주세요.';
+        return '⚠️ AI 응답이 비어있습니다. 질문을 다시 해주세요.';
       }
       _history.add({'role': 'assistant', 'content': text});
       return text;
