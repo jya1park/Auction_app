@@ -208,6 +208,12 @@ class OpenAIService {
 
     await loadKnowledgeBase();
 
+    if (_propertyContext != null && _isPropertyRegulated == null) {
+      final address =
+          (_propertyContext!['주소'] ?? _propertyContext!['소재지'])?.toString();
+      _isPropertyRegulated = _checkRegulatedArea(address);
+    }
+
     final docs = _retrieveRelevantDocs(message);
     final systemPrompt = _buildSystemPrompt(docs);
 
