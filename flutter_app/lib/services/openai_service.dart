@@ -229,14 +229,14 @@ class OpenAIService {
       final choices = data['choices'];
       if (choices == null || (choices as List).isEmpty) {
         _history.removeLast();
-        return '⚠️ API 응답이 비어있습니다. 모델(${_model})을 확인해주세요.';
+        return '⚠️ API 응답이 비어있습니다. 모델($_model)을 확인해주세요.\n\n응답: $data';
       }
 
-      var choice = choices[0];
-      var assistantMessage = choice['message'] as Map<String, dynamic>;
+      var assistantMessage =
+          (choices as List)[0]['message'] as Map<String, dynamic>;
 
       int rounds = 0;
-      while (choice['finish_reason'] == 'tool_calls' && rounds < 5) {
+      while (assistantMessage['tool_calls'] != null && rounds < 5) {
         rounds++;
 
         messages.add(Map<String, dynamic>.from(assistantMessage));
@@ -258,14 +258,14 @@ class OpenAIService {
         }
 
         data = await _callApi(messages);
-        choice = (data['choices'] as List)[0];
-        assistantMessage = choice['message'] as Map<String, dynamic>;
+        assistantMessage =
+            (data['choices'] as List)[0]['message'] as Map<String, dynamic>;
       }
 
       final text = (assistantMessage['content'] as String?) ?? '';
       if (text.isEmpty) {
         _history.removeLast();
-        return '⚠️ AI 응답이 비어있습니다. 다시 질문해주세요.';
+        return '⚠️ AI 응답이 비어있습니다.\n\n전체 응답: ${json.encode(assistantMessage)}';
       }
       _history.add({'role': 'assistant', 'content': text});
       return text;
