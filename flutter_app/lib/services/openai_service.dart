@@ -91,6 +91,7 @@ class OpenAIService {
     final buffer = StringBuffer();
 
     buffer.writeln('당신은 한국 부동산 세금 전문가이자 경매 법률 상담사입니다.');
+    buffer.writeln('주택임대차보호법, 권리분석, 대항력, 배당순위, 소액임차인 등 경매 관련 법률에 정통합니다.');
     buffer.writeln();
     buffer.writeln('## 규칙');
     buffer.writeln('- 항상 한국어로 응답하세요.');
