@@ -173,14 +173,18 @@ class OpenAIService {
   }
 
   Future<Map<String, dynamic>> _callApi(
-      List<Map<String, dynamic>> messages) async {
-    final body = json.encode({
+      List<Map<String, dynamic>> messages,
+      {bool withTools = true}) async {
+    final payload = <String, dynamic>{
       'model': _model,
       'max_completion_tokens': _maxTokens,
       'temperature': 1,
       'messages': messages,
-      'tools': TaxCalculator.toolDefinitions,
-    });
+    };
+    if (withTools) {
+      payload['tools'] = TaxCalculator.toolDefinitions;
+    }
+    final body = json.encode(payload);
 
     final response = await http.post(
       Uri.parse(_apiUrl),
@@ -262,10 +266,22 @@ class OpenAIService {
             (data['choices'] as List)[0]['message'] as Map<String, dynamic>;
       }
 
-      final text = (assistantMessage['content'] as String?) ?? '';
+      var text = (assistantMessage['content'] as String?) ?? '';
+
+      if (text.isEmpty) {
+        final retryMessages = <Map<String, dynamic>>[
+          {'role': 'system', 'content': systemPrompt},
+          ..._history,
+        ];
+        final retryData = await _callApi(retryMessages, withTools: false);
+        final retryMsg = (retryData['choices'] as List)[0]['message']
+            as Map<String, dynamic>;
+        text = (retryMsg['content'] as String?) ?? '';
+      }
+
       if (text.isEmpty) {
         _history.removeLast();
-        return '⚠️ AI 응답이 비어있습니다.\n\n전체 응답: ${json.encode(assistantMessage)}';
+        return '⚠️ AI 응답이 비어있습니다. 다시 질문해주세요.';
       }
       _history.add({'role': 'assistant', 'content': text});
       return text;
