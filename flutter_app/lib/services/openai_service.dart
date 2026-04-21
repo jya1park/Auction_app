@@ -165,17 +165,11 @@ class OpenAIService {
   }
 
   Future<Map<String, dynamic>> _callApi(
-      List<Map<String, dynamic>> messages,
-      {bool withTools = true, int? maxTokens}) async {
-    final payload = <String, dynamic>{
+      List<Map<String, dynamic>> messages) async {
+    final body = json.encode({
       'model': _model,
-      'max_completion_tokens': maxTokens ?? _maxTokens,
       'messages': messages,
-    };
-    if (withTools) {
-      payload['tools'] = TaxCalculator.toolDefinitions;
-    }
-    final body = json.encode(payload);
+    });
 
     final response = await http.post(
       Uri.parse(_apiUrl),
@@ -209,21 +203,10 @@ class OpenAIService {
       _isPropertyRegulated = _checkRegulatedArea(address);
     }
 
-    // 1단계: LLM 라우터 - 질문에 맞는 문서 1개 선택
-    String? docContent;
-    try {
-      final selectedFile = await _routeDocument(message);
-      if (selectedFile != null) {
-        docContent = _docCache[selectedFile];
-      }
-    } catch (_) {
-      // 라우터 실패 시 문서 없이 진행
-    }
-
-    // 2단계: 선택된 문서로 시스템 프롬프트 구성
-    final systemPrompt = _buildSystemPrompt(docContent);
-
     _history.add({'role': 'user', 'content': message});
+
+    // 시스템 프롬프트 (물건 정보 + 조정대상지역만, RAG 없음)
+    final systemPrompt = _buildSystemPrompt(null);
 
     final messages = <Map<String, dynamic>>[
       {'role': 'system', 'content': systemPrompt},
@@ -231,34 +214,20 @@ class OpenAIService {
     ];
 
     try {
-      // 3단계: tools 없이 먼저 시도 (nano 모델 호환)
-      var data = await _callApi(messages, withTools: false);
+      final data = await _callApi(messages);
       final choices = data['choices'];
       if (choices == null || (choices as List).isEmpty) {
         _history.removeLast();
-        return '⚠️ API 응답이 비어있습니다.';
+        return '⚠️ API 응답이 비어있습니다.\n\n$data';
       }
 
-      var assistantMessage =
+      final assistantMessage =
           (choices as List)[0]['message'] as Map<String, dynamic>;
-      var text = (assistantMessage['content'] as String?) ?? '';
-
-      // 4단계: 빈 응답이면 RAG 줄여서 재시도
-      if (text.isEmpty) {
-        final minimalPrompt = _buildSystemPrompt(null);
-        final retryMessages = <Map<String, dynamic>>[
-          {'role': 'system', 'content': minimalPrompt},
-          ..._history,
-        ];
-        final retryData = await _callApi(retryMessages, withTools: false);
-        final retryMsg = (retryData['choices'] as List)[0]['message']
-            as Map<String, dynamic>;
-        text = (retryMsg['content'] as String?) ?? '';
-      }
+      final text = (assistantMessage['content'] as String?) ?? '';
 
       if (text.isEmpty) {
         _history.removeLast();
-        return '⚠️ AI 응답이 비어있습니다. 질문을 다시 해주세요.';
+        return '⚠️ AI 응답이 비어있습니다.\n\n전체: ${json.encode(data)}';
       }
       _history.add({'role': 'assistant', 'content': text});
       return text;
