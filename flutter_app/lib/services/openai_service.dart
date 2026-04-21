@@ -129,10 +129,18 @@ class OpenAIService {
       if (p['사건번호'] != null) buffer.writeln('- 사건번호: ${p['사건번호']}');
 
       if (_isPropertyRegulated != null) {
+        final reg = _isPropertyRegulated!;
+        buffer.writeln('- 조정대상지역: ${reg ? "✅ 해당" : "❌ 비해당"}');
+        if (reg) {
+          buffer.writeln('  → 취득세: 2주택 8%, 3주택 12%');
+          buffer.writeln('  → 양도세: 2주택 기본+20%p, 3주택 기본+30%p');
+          buffer.writeln('  → 장기보유특별공제: 중과 시 적용 불가');
+        } else {
+          buffer.writeln('  → 취득세: 2주택 일반세율(1~3%), 3주택 8%');
+          buffer.writeln('  → 양도세: 중과 미적용 (기본세율)');
+        }
         buffer.writeln(
-            '- 조정대상지역: ${_isPropertyRegulated! ? "해당" : "비해당"}');
-        buffer.writeln(
-            '계산기 호출 시 is_regulated_area=${_isPropertyRegulated!}로 설정하세요.');
+            '계산기 호출 시 is_regulated_area=$reg로 설정하세요.');
       }
     }
 
