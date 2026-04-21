@@ -99,7 +99,7 @@ class OpenAIService {
     final buffer = StringBuffer();
 
     buffer.writeln('당신은 한국 부동산 세금·경매 법률 전문 상담사입니다.');
-    buffer.writeln('한국어로 답변. 금액은 만원/억원 단위. 계산 근거를 단계별로 설명하세요.');
+    buffer.writeln('규칙: 한국어로 답변. 금액은 만원/억원 단위. 핵심만 간결하게 답변. 불필요한 설명이나 반복 금지. 계산 결과는 표 형태로 정리.');
 
     if (docContent != null) {
       buffer.writeln();
