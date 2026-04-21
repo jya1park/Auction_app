@@ -177,7 +177,7 @@ class OpenAIService {
     final body = json.encode({
       'model': _model,
       'max_completion_tokens': _maxTokens,
-      'temperature': 0.5,
+      'temperature': 0.3,
       'messages': messages,
       'tools': TaxCalculator.toolDefinitions,
     });
