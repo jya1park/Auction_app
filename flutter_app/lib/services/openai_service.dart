@@ -226,21 +226,27 @@ class OpenAIService {
 
     try {
       var data = await _callApi(messages);
-      var choice = data['choices'][0];
-      var assistantMessage = choice['message'];
+      final choices = data['choices'];
+      if (choices == null || (choices as List).isEmpty) {
+        _history.removeLast();
+        return '⚠️ API 응답이 비어있습니다. 모델(${_model})을 확인해주세요.';
+      }
+
+      var choice = choices[0];
+      var assistantMessage = choice['message'] as Map<String, dynamic>;
 
       int rounds = 0;
       while (choice['finish_reason'] == 'tool_calls' && rounds < 5) {
         rounds++;
 
-        messages.add(assistantMessage);
+        messages.add(Map<String, dynamic>.from(assistantMessage));
 
         final toolCalls = assistantMessage['tool_calls'] as List<dynamic>;
         for (final toolCall in toolCalls) {
-          final fnName = toolCall['function']['name'] as String;
+          final fn = toolCall['function'] as Map<String, dynamic>;
+          final fnName = fn['name'] as String;
           final fnArgs =
-              json.decode(toolCall['function']['arguments'] as String)
-                  as Map<String, dynamic>;
+              json.decode(fn['arguments'] as String) as Map<String, dynamic>;
 
           final result = TaxCalculator.executeFunction(fnName, fnArgs);
 
@@ -252,20 +258,20 @@ class OpenAIService {
         }
 
         data = await _callApi(messages);
-        choice = data['choices'][0];
-        assistantMessage = choice['message'];
+        choice = (data['choices'] as List)[0];
+        assistantMessage = choice['message'] as Map<String, dynamic>;
       }
 
-      final text = assistantMessage['content'] as String? ?? '';
+      final text = (assistantMessage['content'] as String?) ?? '';
+      if (text.isEmpty) {
+        _history.removeLast();
+        return '⚠️ AI 응답이 비어있습니다. 다시 질문해주세요.';
+      }
       _history.add({'role': 'assistant', 'content': text});
       return text;
     } catch (e) {
-      _history.removeLast();
-      if (e is Exception) {
-        final msg = e.toString().replaceFirst('Exception: ', '');
-        if (msg.contains('API 오류')) return '⚠️ $msg';
-      }
-      return '⚠️ 네트워크 오류: 인터넷 연결을 확인해주세요.\n\n$e';
+      if (_history.isNotEmpty) _history.removeLast();
+      return '⚠️ 오류 발생: $e';
     }
   }
 

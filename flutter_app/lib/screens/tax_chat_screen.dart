@@ -69,7 +69,12 @@ class _TaxChatScreenState extends State<TaxChatScreen> {
     });
     _scrollToBottom();
 
-    final response = await _aiService.sendMessage(text.trim());
+    String response;
+    try {
+      response = await _aiService.sendMessage(text.trim());
+    } catch (e) {
+      response = '⚠️ 오류가 발생했습니다.\n\n$e';
+    }
 
     setState(() {
       _messages.add(_ChatMessage(text: response, isUser: false));
