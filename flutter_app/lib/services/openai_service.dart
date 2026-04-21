@@ -104,8 +104,8 @@ class OpenAIService {
     if (docContent != null) {
       buffer.writeln();
       buffer.writeln('## 참고 자료');
-      if (docContent.length > 4000) {
-        buffer.writeln(docContent.substring(0, 4000));
+      if (docContent.length > 1500) {
+        buffer.writeln(docContent.substring(0, 1500));
         buffer.writeln('...(이하 생략)');
       } else {
         buffer.writeln(docContent);
@@ -269,10 +269,11 @@ class OpenAIService {
 
       var text = (assistantMessage['content'] as String?) ?? '';
 
-      // 5단계: 빈 응답 시 tools 없이 재시도
+      // 5단계: 빈 응답 시 tools + RAG 없이 최소 프롬프트로 재시도
       if (text.isEmpty) {
+        final minimalPrompt = _buildSystemPrompt(null);
         final retryMessages = <Map<String, dynamic>>[
-          {'role': 'system', 'content': systemPrompt},
+          {'role': 'system', 'content': minimalPrompt},
           ..._history,
         ];
         final retryData = await _callApi(retryMessages, withTools: false);
