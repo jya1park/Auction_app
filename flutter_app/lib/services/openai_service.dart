@@ -44,18 +44,17 @@ class OpenAIService {
   }
 
   bool _checkRegulatedArea(String? address) {
-    if (address == null || address.isEmpty) return false;
+    if (address == null || address.isEmpty || _regulatedAreas.isEmpty) {
+      return false;
+    }
     for (final area in _regulatedAreas) {
+      // 전체 매칭: "서울특별시 강남구" in "서울특별시 강남구 역삼동 123"
       if (address.contains(area)) return true;
+
       final parts = area.split(' ');
-      if (parts.length >= 2) {
-        final district = parts.last;
-        if (address.contains(district) &&
-            (address.contains(parts.first) ||
-                address.contains(parts.first.replaceAll('특별시', '')))) {
-          return true;
-        }
-      }
+      // 구/시 이름만 매칭: "강남구", "영통구", "과천시" 등
+      final district = parts.last;
+      if (address.contains(district)) return true;
     }
     return false;
   }
@@ -181,7 +180,7 @@ class OpenAIService {
 
     await loadKnowledgeBase();
 
-    if (_propertyContext != null && _isPropertyRegulated == null) {
+    if (_propertyContext != null) {
       final address =
           (_propertyContext!['주소'] ?? _propertyContext!['소재지'])?.toString();
       _isPropertyRegulated = _checkRegulatedArea(address);
