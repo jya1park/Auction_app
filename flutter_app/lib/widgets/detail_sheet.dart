@@ -624,9 +624,10 @@ class _PropertyAnalysisScreenState extends State<_PropertyAnalysisScreen> {
     final usage = p['용도'] ?? p['물건종류'] ?? '';
     final area = p['전용면적'] ?? '';
 
-    final prompt = '아파트 단지 분석을 장점 3가지, 단점 3가지로 요약해줘.\n'
+    final prompt = '이 아파트에 실제 거주할 때 좋은 점 3가지와 불편한 점 3가지를 알려줘.\n'
+        '투자 관점이 아닌 생활·거주 관점으로 분석해줘. (교통, 학군, 편의시설, 소음, 주차, 채광, 단지환경 등)\n'
         '물건: $aptName\n주소: $address\n용도: $usage\n면적: ${area}㎡\n\n'
-        '형식:\n👍 장점\n1. ...\n2. ...\n3. ...\n\n👎 단점\n1. ...\n2. ...\n3. ...';
+        '형식:\n👍 거주 장점\n1. ...\n2. ...\n3. ...\n\n👎 거주 단점\n1. ...\n2. ...\n3. ...';
 
     try {
       final service = (await _getService());
