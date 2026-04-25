@@ -11,15 +11,23 @@ class ListScreen extends StatefulWidget {
 
 class _ListScreenState extends State<ListScreen> {
   final FirestoreService _service = FirestoreService();
+  final TextEditingController _searchController = TextEditingController();
 
   List<Map<String, dynamic>> _items = [];
   bool _isLoading = false;
-  String _filter = 'all'; // all, ongoing, sold, unsold, has_trade
+  String _filter = 'all';
+  String _searchQuery = '';
 
   @override
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -39,25 +47,48 @@ class _ListScreenState extends State<ListScreen> {
   }
 
   List<Map<String, dynamic>> get _filtered {
+    var result = _items;
+
+    // 상태 필터
     switch (_filter) {
       case 'ongoing':
-        return _items.where((i) => i['경매상태'] == '경매중').toList();
+        result = result.where((i) => i['경매상태'] == '경매중').toList();
+        break;
       case 'sold':
-        return _items.where((i) => i['경매상태'] == '낙찰').toList();
+        result = result.where((i) => i['경매상태'] == '낙찰').toList();
+        break;
       case 'unsold':
-        return _items.where((i) => i['경매상태'] == '유찰').toList();
+        result = result.where((i) => i['경매상태'] == '유찰').toList();
+        break;
       case 'has_trade':
-        return _items.where((i) {
+        result = result.where((i) {
           final list = i['실거래가목록'];
           return list is List && list.isNotEmpty;
         }).toList();
-      default:
-        return _items;
+        break;
     }
+
+    // 검색 필터
+    if (_searchQuery.isNotEmpty) {
+      final q = _searchQuery.toLowerCase();
+      result = result.where((i) {
+        final aptName = (i['아파트명'] ?? '').toString().toLowerCase();
+        final address = (i['주소'] ?? i['소재지'] ?? '').toString().toLowerCase();
+        final dong = (i['동명'] ?? '').toString().toLowerCase();
+        final caseNo = (i['사건번호'] ?? '').toString().toLowerCase();
+        return aptName.contains(q) ||
+            address.contains(q) ||
+            dong.contains(q) ||
+            caseNo.contains(q);
+      }).toList();
+    }
+
+    return result;
   }
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     final filtered = _filtered;
     return Scaffold(
       appBar: AppBar(
@@ -68,6 +99,40 @@ class _ListScreenState extends State<ListScreen> {
       ),
       body: Column(
         children: [
+          // 검색바
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: '아파트명, 주소, 사건번호 검색',
+                hintStyle: TextStyle(
+                  fontSize: 14,
+                  color: colorScheme.onSurface.withOpacity(0.5),
+                ),
+                prefixIcon: const Icon(Icons.search, size: 20),
+                suffixIcon: _searchQuery.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear, size: 20),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() => _searchQuery = '');
+                        },
+                      )
+                    : null,
+                filled: true,
+                fillColor: colorScheme.surfaceContainerHighest.withOpacity(0.5),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+              onChanged: (v) => setState(() => _searchQuery = v),
+            ),
+          ),
+          // 필터 칩
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             child: SingleChildScrollView(
@@ -91,6 +156,23 @@ class _ListScreenState extends State<ListScreen> {
               ),
             ),
           ),
+          // 검색 결과 수
+          if (_searchQuery.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  '검색 결과: ${filtered.length}건',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: colorScheme.primary,
+                  ),
+                ),
+              ),
+            ),
+          // 목록
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
@@ -126,11 +208,11 @@ class _ListScreenState extends State<ListScreen> {
         children: [
           const Icon(Icons.inbox_outlined, size: 64, color: Colors.grey),
           const SizedBox(height: 12),
-          const Text('해당 조건의 데이터가 없습니다',
-              style: TextStyle(color: Colors.grey, fontSize: 16)),
-          const SizedBox(height: 4),
-          const Text('PC에서 python upload_csv.py 로 데이터를 업로드하세요',
-              style: TextStyle(color: Colors.grey, fontSize: 13)),
+          Text(
+              _searchQuery.isNotEmpty
+                  ? '"$_searchQuery" 검색 결과가 없습니다'
+                  : '해당 조건의 데이터가 없습니다',
+              style: const TextStyle(color: Colors.grey, fontSize: 16)),
         ],
       ),
     );
