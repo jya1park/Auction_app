@@ -186,27 +186,32 @@ function buildInfoContent(item, isAuction) {
     var mainPrice = sale || minBid || appraisal;
     var mainLabel = sale ? '' : (minBid ? '최저입찰가 ' : '감정가 ');
 
-    // 실거래가 요약 (가장 최근 1건만 표시)
+    // 실거래가 요약 (경매 물건과 비슷한 면적 우선)
     var tradeHtml = '';
     var tradeGroups = item['실거래가목록'] || [];
     if (tradeGroups.length > 0) {
-      var latestTrade = null;
-      var latestArea = '';
+      var itemArea = parseFloat(item['전용면적']) || 0;
+      var bestTrade = null;
+      var bestArea = '';
+      var bestDiff = 99999;
       for (var i = 0; i < tradeGroups.length; i++) {
         var g = tradeGroups[i];
         var trades = g['최근거래'] || [];
-        if (trades.length > 0) {
-          var t = trades[0]; // 정렬되어 있음
-          if (!latestTrade || (t['년'] * 100 + t['월']) > (latestTrade['년'] * 100 + latestTrade['월'])) {
-            latestTrade = t;
-            latestArea = g['전용면적'] || '';
-          }
+        if (trades.length === 0) continue;
+        var gArea = parseFloat(g['전용면적']) || 0;
+        var diff = itemArea > 0 ? Math.abs(gArea - itemArea) : 99999;
+        var t = trades[0];
+        if (diff < bestDiff || (diff === bestDiff && (!bestTrade || (t['년'] * 100 + t['월']) > (bestTrade['년'] * 100 + bestTrade['월'])))) {
+          bestTrade = t;
+          bestArea = g['전용면적'] || '';
+          bestDiff = diff;
         }
       }
-      if (latestTrade) {
+      if (bestTrade) {
+        var matchLabel = (itemArea > 0 && bestDiff < 5) ? '동일평형 ' : '';
         tradeHtml = '<div style="margin-top:6px;padding-top:6px;border-top:1px dashed #cbd5e1;">'
-          + '<div style="font-size:11px;color:#1e40af;font-weight:700;">실거래가 ' + latestTrade['년'] + '.' + latestTrade['월'] + (latestArea ? ' (' + latestArea + '㎡)' : '') + '</div>'
-          + '<div style="font-size:14px;font-weight:800;color:#1e40af;">' + formatWon10k(latestTrade['거래금액']) + '</div>'
+          + '<div style="font-size:11px;color:#1e40af;font-weight:700;">' + matchLabel + '실거래 ' + bestTrade['년'] + '.' + bestTrade['월'] + (bestArea ? ' (' + bestArea + '㎡)' : '') + '</div>'
+          + '<div style="font-size:14px;font-weight:800;color:#1e40af;">' + formatWon10k(bestTrade['거래금액']) + '</div>'
           + '</div>';
       }
     }
