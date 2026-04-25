@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 import '../screens/tax_chat_screen.dart';
 import '../services/openai_service.dart';
 
@@ -539,19 +540,20 @@ class DetailSheet extends StatelessWidget {
 
   void _openCourtAuction(BuildContext context) {
     final caseNo = (data['사건번호'] ?? '').toString().trim();
-    final address = (data['주소'] ?? data['소재지'] ?? '').toString().trim();
-
-    final query = caseNo.isNotEmpty ? caseNo : address;
-    if (query.isEmpty) {
+    if (caseNo.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('사건번호 또는 주소 정보가 없습니다.')),
+        const SnackBar(content: Text('사건번호 정보가 없습니다.')),
       );
       return;
     }
 
-    final url = Uri.parse(
-        'https://www.courtauction.go.kr/pgj/index.on?w2xPath=/pgj/ui/pgj100/PGJ159M00.xml');
-    launchUrl(url, mode: LaunchMode.externalApplication);
+    Navigator.pop(context);
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => _CourtAuctionScreen(caseNo: caseNo),
+      ),
+    );
   }
 
   Widget _title(String text) {
@@ -665,6 +667,122 @@ class _PropertyAnalysisScreenState extends State<_PropertyAnalysisScreen> {
                 style: const TextStyle(fontSize: 15, height: 1.7),
               ),
             ),
+    );
+  }
+}
+
+class _CourtAuctionScreen extends StatefulWidget {
+  final String caseNo;
+
+  const _CourtAuctionScreen({required this.caseNo});
+
+  @override
+  State<_CourtAuctionScreen> createState() => _CourtAuctionScreenState();
+}
+
+class _CourtAuctionScreenState extends State<_CourtAuctionScreen> {
+  late final WebViewController _controller;
+  bool _injected = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setNavigationDelegate(NavigationDelegate(
+        onPageFinished: (_) => _injectCaseNumber(),
+      ))
+      ..loadRequest(Uri.parse(
+          'https://www.courtauction.go.kr/pgj/index.on?w2xPath=/pgj/ui/pgj100/PGJ159M00.xml'));
+  }
+
+  Future<void> _injectCaseNumber() async {
+    if (_injected) return;
+    _injected = true;
+
+    final caseNo = widget.caseNo;
+
+    // 사건번호 파싱: "2024타경12345" → 년도: 2024, 번호: 12345
+    final yearMatch = RegExp(r'(\d{4})').firstMatch(caseNo);
+    final numMatch = RegExp(r'[가-힣]+(\d+)').firstMatch(caseNo);
+    final year = yearMatch?.group(1) ?? '';
+    final num = numMatch?.group(1) ?? '';
+
+    await Future.delayed(const Duration(milliseconds: 1500));
+
+    await _controller.runJavaScript('''
+      (function() {
+        // 입력 필드에 값 넣기 (다양한 선택자 시도)
+        var inputs = document.querySelectorAll('input[type="text"], input[type="number"], input:not([type])');
+        var filled = false;
+
+        // 사건번호 전체를 넣을 수 있는 필드 찾기
+        for (var i = 0; i < inputs.length; i++) {
+          var inp = inputs[i];
+          var name = (inp.name || '').toLowerCase();
+          var id = (inp.id || '').toLowerCase();
+          var ph = (inp.placeholder || '');
+
+          // 사건번호 입력란
+          if (name.indexOf('saNo') >= 0 || name.indexOf('caseNo') >= 0 ||
+              name.indexOf('sa_no') >= 0 || id.indexOf('sa') >= 0 ||
+              ph.indexOf('사건') >= 0 || ph.indexOf('번호') >= 0) {
+            inp.value = '$caseNo';
+            inp.dispatchEvent(new Event('input', {bubbles: true}));
+            inp.dispatchEvent(new Event('change', {bubbles: true}));
+            filled = true;
+          }
+
+          // 년도 입력란
+          if (name.indexOf('year') >= 0 || name.indexOf('yyyy') >= 0 ||
+              id.indexOf('year') >= 0 || ph.indexOf('년도') >= 0) {
+            inp.value = '$year';
+            inp.dispatchEvent(new Event('input', {bubbles: true}));
+            inp.dispatchEvent(new Event('change', {bubbles: true}));
+          }
+
+          // 호수/번호 입력란
+          if ((name.indexOf('no') >= 0 && name.indexOf('saNo') < 0) ||
+              ph.indexOf('호') >= 0) {
+            inp.value = '$num';
+            inp.dispatchEvent(new Event('input', {bubbles: true}));
+            inp.dispatchEvent(new Event('change', {bubbles: true}));
+          }
+        }
+
+        // 못 찾으면 첫번째 빈 텍스트 입력란에 사건번호 넣기
+        if (!filled) {
+          for (var i = 0; i < inputs.length; i++) {
+            if (inputs[i].value === '' && inputs[i].offsetParent !== null) {
+              inputs[i].value = '$caseNo';
+              inputs[i].dispatchEvent(new Event('input', {bubbles: true}));
+              inputs[i].dispatchEvent(new Event('change', {bubbles: true}));
+              break;
+            }
+          }
+        }
+      })();
+    ''');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('경매정보 ${widget.caseNo}'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.open_in_browser),
+            tooltip: '브라우저에서 열기',
+            onPressed: () => launchUrl(
+              Uri.parse(
+                  'https://www.courtauction.go.kr/pgj/index.on?w2xPath=/pgj/ui/pgj100/PGJ159M00.xml'),
+              mode: LaunchMode.externalApplication,
+            ),
+          ),
+        ],
+      ),
+      body: WebViewWidget(controller: _controller),
     );
   }
 }
