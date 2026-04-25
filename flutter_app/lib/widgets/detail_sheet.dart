@@ -549,9 +549,8 @@ class DetailSheet extends StatelessWidget {
       return;
     }
 
-    final encoded = Uri.encodeComponent(query);
     final url = Uri.parse(
-        'https://www.courtauction.go.kr/RetrieveMainInfo.laf?searchString=$encoded');
+        'https://www.courtauction.go.kr/pgj/index.on?w2xPath=/pgj/ui/pgj100/PGJ159M00.xml');
     launchUrl(url, mode: LaunchMode.externalApplication);
   }
 
