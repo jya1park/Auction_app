@@ -761,6 +761,21 @@ class _CourtAuctionScreenState extends State<_CourtAuctionScreen> {
             }
           }
         }
+
+        // 검색 버튼 자동 클릭
+        setTimeout(function() {
+          var btns = document.querySelectorAll('button, input[type="submit"], input[type="button"], a');
+          for (var i = 0; i < btns.length; i++) {
+            var txt = (btns[i].textContent || btns[i].value || '').trim();
+            if (txt === '검색' || txt === '조회' || txt === '찾기' || txt === 'Search') {
+              btns[i].click();
+              return;
+            }
+          }
+          // 못 찾으면 submit 시도
+          var forms = document.querySelectorAll('form');
+          if (forms.length > 0) forms[0].submit();
+        }, 500);
       })();
     ''');
   }
