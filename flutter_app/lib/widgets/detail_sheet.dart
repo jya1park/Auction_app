@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../screens/tax_chat_screen.dart';
+import '../services/openai_service.dart';
 
 /// 마커 탭 시 하단에서 올라오는 상세정보 시트
 class DetailSheet extends StatelessWidget {
@@ -239,6 +240,31 @@ class DetailSheet extends StatelessWidget {
             ),
           ),
         ],
+      ),
+      const SizedBox(height: 8),
+      Builder(
+        builder: (ctx) => SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: () {
+              Navigator.pop(ctx);
+              Navigator.push(
+                ctx,
+                MaterialPageRoute(
+                  builder: (_) => _PropertyAnalysisScreen(property: data),
+                ),
+              );
+            },
+            icon: const Icon(Icons.analytics_outlined, size: 18),
+            label: const Text('단지 분석 (장점/단점)'),
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+        ),
       ),
     ];
   }
@@ -568,5 +594,77 @@ class DetailSheet extends StatelessWidget {
       return man > 0 ? '$eok억 $man만원' : '$eok억원';
     }
     return '$n만원';
+  }
+}
+
+class _PropertyAnalysisScreen extends StatefulWidget {
+  final Map<String, dynamic> property;
+
+  const _PropertyAnalysisScreen({required this.property});
+
+  @override
+  State<_PropertyAnalysisScreen> createState() =>
+      _PropertyAnalysisScreenState();
+}
+
+class _PropertyAnalysisScreenState extends State<_PropertyAnalysisScreen> {
+  String? _analysis;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAnalysis();
+  }
+
+  Future<void> _loadAnalysis() async {
+    final p = widget.property;
+    final aptName = p['아파트명'] ?? '';
+    final address = p['주소'] ?? p['소재지'] ?? '';
+    final usage = p['용도'] ?? p['물건종류'] ?? '';
+    final area = p['전용면적'] ?? '';
+
+    final prompt = '아파트 단지 분석을 장점 3가지, 단점 3가지로 요약해줘.\n'
+        '물건: $aptName\n주소: $address\n용도: $usage\n면적: ${area}㎡\n\n'
+        '형식:\n👍 장점\n1. ...\n2. ...\n3. ...\n\n👎 단점\n1. ...\n2. ...\n3. ...';
+
+    try {
+      final service = (await _getService());
+      final result = await service.sendMessage(prompt);
+      if (mounted) setState(() { _analysis = result; _loading = false; });
+    } catch (e) {
+      if (mounted) setState(() { _analysis = '⚠️ 분석 실패: $e'; _loading = false; });
+    }
+  }
+
+  Future<OpenAIService> _getService() async {
+    final service = OpenAIService();
+    await service.loadKnowledgeBase();
+    return service;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final aptName = widget.property['아파트명'] ?? '물건';
+
+    return Scaffold(
+      appBar: AppBar(title: Text('$aptName 단지 분석')),
+      body: _loading
+          ? const Center(child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text('AI가 단지를 분석 중입니다...'),
+              ],
+            ))
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: SelectableText(
+                _analysis ?? '',
+                style: const TextStyle(fontSize: 15, height: 1.7),
+              ),
+            ),
+    );
   }
 }
