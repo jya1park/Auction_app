@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../screens/tax_chat_screen.dart';
 
 /// 마커 탭 시 하단에서 올라오는 상세정보 시트
@@ -196,29 +197,48 @@ class DetailSheet extends StatelessWidget {
       if (note.isNotEmpty) _infoTile(Icons.info_outline, '비고', note),
 
       const SizedBox(height: 16),
-      Builder(
-        builder: (ctx) => SizedBox(
-          width: double.infinity,
-          child: ElevatedButton.icon(
-            onPressed: () {
-              Navigator.pop(ctx);
-              Navigator.push(
-                ctx,
-                MaterialPageRoute(
-                  builder: (_) => TaxChatScreen(property: data),
+      Row(
+        children: [
+          Expanded(
+            child: Builder(
+              builder: (ctx) => ElevatedButton.icon(
+                onPressed: () => _openCourtAuction(ctx),
+                icon: const Icon(Icons.open_in_new, size: 18),
+                label: const Text('경매정보 보기'),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
-              );
-            },
-            icon: const Icon(Icons.support_agent),
-            label: const Text('이 물건 세금 상담'),
-            style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
               ),
             ),
           ),
-        ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Builder(
+              builder: (ctx) => ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  Navigator.push(
+                    ctx,
+                    MaterialPageRoute(
+                      builder: (_) => TaxChatScreen(property: data),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.support_agent, size: 18),
+                label: const Text('세금 상담'),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     ];
   }
@@ -489,6 +509,24 @@ class DetailSheet extends StatelessWidget {
       ));
     }
     return rows;
+  }
+
+  void _openCourtAuction(BuildContext context) {
+    final caseNo = (data['사건번호'] ?? '').toString().trim();
+    final address = (data['주소'] ?? data['소재지'] ?? '').toString().trim();
+
+    final query = caseNo.isNotEmpty ? caseNo : address;
+    if (query.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('사건번호 또는 주소 정보가 없습니다.')),
+      );
+      return;
+    }
+
+    final encoded = Uri.encodeComponent(query);
+    final url = Uri.parse(
+        'https://www.courtauction.go.kr/RetrieveMainInfo.laf?searchString=$encoded');
+    launchUrl(url, mode: LaunchMode.externalApplication);
   }
 
   Widget _title(String text) {
