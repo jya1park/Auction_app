@@ -723,76 +723,78 @@ class _CourtAuctionScreenState extends State<_CourtAuctionScreen> {
           el.dispatchEvent(new Event('change', {bubbles:true}));
         }
 
-        function selectOption(sel, keyword) {
-          if (!sel || !keyword) return;
+        function selectByValue(sel, val) {
+          if (!sel || !val) return false;
+          for (var i = 0; i < sel.options.length; i++) {
+            if (sel.options[i].value == val || sel.options[i].text.trim() == val) {
+              sel.selectedIndex = i;
+              sel.dispatchEvent(new Event('change', {bubbles:true}));
+              return true;
+            }
+          }
+          return false;
+        }
+
+        function selectByKeyword(sel, keyword) {
+          if (!sel || !keyword) return false;
           for (var i = 0; i < sel.options.length; i++) {
             if (sel.options[i].text.indexOf(keyword) >= 0) {
               sel.selectedIndex = i;
               sel.dispatchEvent(new Event('change', {bubbles:true}));
-              return;
+              return true;
             }
           }
+          return false;
         }
 
-        // 법원 선택 (select 드롭다운)
+        var selects = document.querySelectorAll('select');
+
+        // 1. 법원 선택
         var court = '$court';
         if (court) {
-          var selects = document.querySelectorAll('select');
+          var courtKeyword = court.replace('지방법원', '').replace('지원', '').trim();
           for (var i = 0; i < selects.length; i++) {
-            var s = selects[i];
-            var name = (s.name || '').toLowerCase();
-            var id = (s.id || '').toLowerCase();
-            if (name.indexOf('court') >= 0 || name.indexOf('jiwon') >= 0 ||
-                id.indexOf('court') >= 0 || id.indexOf('jiwon') >= 0 ||
-                s.options.length > 5) {
-              selectOption(s, court.replace('지방법원', '').replace('지원', ''));
-              break;
-            }
+            if (selectByKeyword(selects[i], courtKeyword)) break;
           }
         }
 
-        // 입력 필드 채우기
+        // 2. 년도 셀렉트박스에서 선택
+        var year = '$year';
+        if (year) {
+          for (var i = 0; i < selects.length; i++) {
+            if (selectByValue(selects[i], year)) break;
+          }
+        }
+
+        // 3. 사건번호(타경 뒤 숫자만) 입력칸에 입력
+        var caseNum = '$num';
         var inputs = document.querySelectorAll('input[type="text"], input[type="number"], input:not([type])');
         var filled = false;
-
         for (var i = 0; i < inputs.length; i++) {
           var inp = inputs[i];
-          var name = (inp.name || '');
-          var id = (inp.id || '');
+          if (inp.offsetParent === null) continue;
+          var name = (inp.name || '').toLowerCase();
+          var id = (inp.id || '').toLowerCase();
           var ph = (inp.placeholder || '');
-          var nameL = name.toLowerCase();
-          var idL = id.toLowerCase();
 
-          if (nameL.indexOf('year') >= 0 || nameL.indexOf('yyyy') >= 0 ||
-              idL.indexOf('year') >= 0 || ph.indexOf('년도') >= 0 || ph.indexOf('년') >= 0) {
-            setVal(inp, '$year');
+          if (name.indexOf('no') >= 0 || name.indexOf('num') >= 0 ||
+              id.indexOf('no') >= 0 || id.indexOf('num') >= 0 ||
+              ph.indexOf('번호') >= 0 || ph.indexOf('호') >= 0) {
+            setVal(inp, caseNum);
             filled = true;
-          }
-
-          if (nameL.indexOf('sano') >= 0 || nameL.indexOf('caseno') >= 0 ||
-              nameL.indexOf('sa_no') >= 0 || idL.indexOf('sano') >= 0 ||
-              ph.indexOf('사건') >= 0 || ph.indexOf('번호') >= 0) {
-            setVal(inp, '$caseNo');
-            filled = true;
-          }
-
-          if ((nameL.indexOf('no') >= 0 && nameL.indexOf('sano') < 0 && nameL.indexOf('year') < 0) ||
-              ph.indexOf('호') >= 0) {
-            setVal(inp, '$num');
-            filled = true;
+            break;
           }
         }
-
         if (!filled) {
           for (var i = 0; i < inputs.length; i++) {
             if (inputs[i].value === '' && inputs[i].offsetParent !== null) {
-              setVal(inputs[i], '$caseNo');
+              setVal(inputs[i], caseNum);
               break;
             }
           }
         }
 
-        // 검색 버튼 자동 클릭
+        // 4. 검색 버튼 자동 클릭
         setTimeout(function() {
           var btns = document.querySelectorAll('button, input[type="submit"], input[type="button"], a, span');
           for (var i = 0; i < btns.length; i++) {
