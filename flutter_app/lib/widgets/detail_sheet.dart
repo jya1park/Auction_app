@@ -551,7 +551,10 @@ class DetailSheet extends StatelessWidget {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => _CourtAuctionScreen(caseNo: caseNo),
+        builder: (_) => _CourtAuctionScreen(
+          caseNo: caseNo,
+          court: (data['법원'] ?? '').toString().trim(),
+        ),
       ),
     );
   }
@@ -673,8 +676,9 @@ class _PropertyAnalysisScreenState extends State<_PropertyAnalysisScreen> {
 
 class _CourtAuctionScreen extends StatefulWidget {
   final String caseNo;
+  final String court;
 
-  const _CourtAuctionScreen({required this.caseNo});
+  const _CourtAuctionScreen({required this.caseNo, this.court = ''});
 
   @override
   State<_CourtAuctionScreen> createState() => _CourtAuctionScreenState();
@@ -701,62 +705,88 @@ class _CourtAuctionScreenState extends State<_CourtAuctionScreen> {
     _injected = true;
 
     final caseNo = widget.caseNo;
+    final court = widget.court;
 
-    // 사건번호 파싱: "2024타경12345" → 년도: 2024, 번호: 12345
     final yearMatch = RegExp(r'(\d{4})').firstMatch(caseNo);
     final numMatch = RegExp(r'[가-힣]+(\d+)').firstMatch(caseNo);
     final year = yearMatch?.group(1) ?? '';
     final num = numMatch?.group(1) ?? '';
 
-    await Future.delayed(const Duration(milliseconds: 1500));
+    await Future.delayed(const Duration(milliseconds: 2000));
 
     await _controller.runJavaScript('''
       (function() {
-        // 입력 필드에 값 넣기 (다양한 선택자 시도)
-        var inputs = document.querySelectorAll('input[type="text"], input[type="number"], input:not([type])');
-        var filled = false;
+        function setVal(el, val) {
+          if (!el) return;
+          el.value = val;
+          el.dispatchEvent(new Event('input', {bubbles:true}));
+          el.dispatchEvent(new Event('change', {bubbles:true}));
+        }
 
-        // 사건번호 전체를 넣을 수 있는 필드 찾기
-        for (var i = 0; i < inputs.length; i++) {
-          var inp = inputs[i];
-          var name = (inp.name || '').toLowerCase();
-          var id = (inp.id || '').toLowerCase();
-          var ph = (inp.placeholder || '');
-
-          // 사건번호 입력란
-          if (name.indexOf('saNo') >= 0 || name.indexOf('caseNo') >= 0 ||
-              name.indexOf('sa_no') >= 0 || id.indexOf('sa') >= 0 ||
-              ph.indexOf('사건') >= 0 || ph.indexOf('번호') >= 0) {
-            inp.value = '$caseNo';
-            inp.dispatchEvent(new Event('input', {bubbles: true}));
-            inp.dispatchEvent(new Event('change', {bubbles: true}));
-            filled = true;
-          }
-
-          // 년도 입력란
-          if (name.indexOf('year') >= 0 || name.indexOf('yyyy') >= 0 ||
-              id.indexOf('year') >= 0 || ph.indexOf('년도') >= 0) {
-            inp.value = '$year';
-            inp.dispatchEvent(new Event('input', {bubbles: true}));
-            inp.dispatchEvent(new Event('change', {bubbles: true}));
-          }
-
-          // 호수/번호 입력란
-          if ((name.indexOf('no') >= 0 && name.indexOf('saNo') < 0) ||
-              ph.indexOf('호') >= 0) {
-            inp.value = '$num';
-            inp.dispatchEvent(new Event('input', {bubbles: true}));
-            inp.dispatchEvent(new Event('change', {bubbles: true}));
+        function selectOption(sel, keyword) {
+          if (!sel || !keyword) return;
+          for (var i = 0; i < sel.options.length; i++) {
+            if (sel.options[i].text.indexOf(keyword) >= 0) {
+              sel.selectedIndex = i;
+              sel.dispatchEvent(new Event('change', {bubbles:true}));
+              return;
+            }
           }
         }
 
-        // 못 찾으면 첫번째 빈 텍스트 입력란에 사건번호 넣기
+        // 법원 선택 (select 드롭다운)
+        var court = '$court';
+        if (court) {
+          var selects = document.querySelectorAll('select');
+          for (var i = 0; i < selects.length; i++) {
+            var s = selects[i];
+            var name = (s.name || '').toLowerCase();
+            var id = (s.id || '').toLowerCase();
+            if (name.indexOf('court') >= 0 || name.indexOf('jiwon') >= 0 ||
+                id.indexOf('court') >= 0 || id.indexOf('jiwon') >= 0 ||
+                s.options.length > 5) {
+              selectOption(s, court.replace('지방법원', '').replace('지원', ''));
+              break;
+            }
+          }
+        }
+
+        // 입력 필드 채우기
+        var inputs = document.querySelectorAll('input[type="text"], input[type="number"], input:not([type])');
+        var filled = false;
+
+        for (var i = 0; i < inputs.length; i++) {
+          var inp = inputs[i];
+          var name = (inp.name || '');
+          var id = (inp.id || '');
+          var ph = (inp.placeholder || '');
+          var nameL = name.toLowerCase();
+          var idL = id.toLowerCase();
+
+          if (nameL.indexOf('year') >= 0 || nameL.indexOf('yyyy') >= 0 ||
+              idL.indexOf('year') >= 0 || ph.indexOf('년도') >= 0 || ph.indexOf('년') >= 0) {
+            setVal(inp, '$year');
+            filled = true;
+          }
+
+          if (nameL.indexOf('sano') >= 0 || nameL.indexOf('caseno') >= 0 ||
+              nameL.indexOf('sa_no') >= 0 || idL.indexOf('sano') >= 0 ||
+              ph.indexOf('사건') >= 0 || ph.indexOf('번호') >= 0) {
+            setVal(inp, '$caseNo');
+            filled = true;
+          }
+
+          if ((nameL.indexOf('no') >= 0 && nameL.indexOf('sano') < 0 && nameL.indexOf('year') < 0) ||
+              ph.indexOf('호') >= 0) {
+            setVal(inp, '$num');
+            filled = true;
+          }
+        }
+
         if (!filled) {
           for (var i = 0; i < inputs.length; i++) {
             if (inputs[i].value === '' && inputs[i].offsetParent !== null) {
-              inputs[i].value = '$caseNo';
-              inputs[i].dispatchEvent(new Event('input', {bubbles: true}));
-              inputs[i].dispatchEvent(new Event('change', {bubbles: true}));
+              setVal(inputs[i], '$caseNo');
               break;
             }
           }
@@ -764,15 +794,14 @@ class _CourtAuctionScreenState extends State<_CourtAuctionScreen> {
 
         // 검색 버튼 자동 클릭
         setTimeout(function() {
-          var btns = document.querySelectorAll('button, input[type="submit"], input[type="button"], a');
+          var btns = document.querySelectorAll('button, input[type="submit"], input[type="button"], a, span');
           for (var i = 0; i < btns.length; i++) {
             var txt = (btns[i].textContent || btns[i].value || '').trim();
-            if (txt === '검색' || txt === '조회' || txt === '찾기' || txt === 'Search') {
+            if (txt === '검색' || txt === '조회' || txt === '찾기') {
               btns[i].click();
               return;
             }
           }
-          // 못 찾으면 submit 시도
           var forms = document.querySelectorAll('form');
           if (forms.length > 0) forms[0].submit();
         }, 500);
