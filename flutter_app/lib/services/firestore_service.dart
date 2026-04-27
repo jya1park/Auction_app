@@ -28,7 +28,7 @@ class FirestoreService {
         .collection('map_items')
         .orderBy('_uploaded_at', descending: true)
         .limit(limit)
-        .get();
+        .get(const GetOptions(source: Source.server));
 
     return snapshot.docs
         .map((doc) => {..._sanitizeDoc(doc.data()), 'id': doc.id})
@@ -46,7 +46,7 @@ class FirestoreService {
         .collection('map_items')
         .where('_type', isEqualTo: 'auction')
         .limit(limit)
-        .get();
+        .get(const GetOptions(source: Source.server));
 
     final items = snapshot.docs
         .map((doc) => {..._sanitizeDoc(doc.data()), 'id': doc.id})
