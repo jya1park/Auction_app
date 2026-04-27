@@ -306,3 +306,150 @@ def parse_list_csv(csv_path):
             results.append(item)
 
     return results
+
+
+def parse_xlsx(xlsx_path):
+    # type: (str) -> List[Dict]
+    """
+    courtauction_data.xlsx 파싱 (경매목록 + 매각결과 시트)
+    """
+    import openpyxl
+
+    wb = openpyxl.load_workbook(xlsx_path, read_only=True, data_only=True)
+    results = []
+
+    # 매각결과 시트
+    result_sheet = None
+    for name in wb.sheetnames:
+        if '매각' in name or '결과' in name:
+            result_sheet = wb[name]
+            break
+
+    if result_sheet:
+        rows = list(result_sheet.iter_rows(values_only=True))
+        if rows:
+            headers = [str(h or '').strip() for h in rows[0]]
+            for row in rows[1:]:
+                r = {headers[i]: (row[i] if i < len(row) else '') for i in range(len(headers))}
+
+                raw_location = str(r.get('소재지 및 내역', '') or '')
+                parsed_loc = parse_location(raw_location)
+
+                full_text = str(r.get('전체', '') or '')
+                court = ''
+                court_match = re.match(r'([가-힣]+(?:지방)?법원)', full_text)
+                if court_match:
+                    court = court_match.group(1)
+
+                sale_date_raw = str(r.get('담당계매각기일(입찰기간)', '') or '')
+                sale_date = parse_sale_date(sale_date_raw)
+                sale_ym = parse_sale_month(sale_date_raw)
+
+                appraisal = _to_int(r.get('감정평가액_원') or r.get('감정평가액'))
+                sale_amount = _to_int(r.get('매각금액_원') or r.get('매각금액'))
+                sale_result = str(r.get('매각결과', '') or '').strip()
+
+                discount_ratio = 0.0
+                if sale_amount > 0 and appraisal > 0:
+                    discount_ratio = round(sale_amount / appraisal * 100, 1)
+
+                if sale_result == '매각':
+                    status = '낙찰'
+                elif sale_result == '유찰':
+                    status = '유찰'
+                else:
+                    status = '경매중'
+
+                item = {
+                    '사건번호': str(r.get('사건번호', '') or '').strip(),
+                    '물건번호': str(r.get('물건번호', '') or '').strip(),
+                    '법원': court,
+                    '용도': str(r.get('용도', '') or '').strip(),
+                    '소재지_원본': raw_location,
+                    '주소': parsed_loc['주소'],
+                    '동명': parsed_loc['동명'],
+                    '아파트명': parsed_loc['아파트명'],
+                    '건물구조': parsed_loc['건물구조'],
+                    '전용면적': parsed_loc['전용면적'],
+                    '본번': parsed_loc['본번'],
+                    '부번': parsed_loc['부번'],
+                    '감정가': appraisal,
+                    '최저입찰가': 0,
+                    '매각결과': sale_result,
+                    '경매상태': status,
+                    '매각금액': sale_amount,
+                    '할인율': discount_ratio,
+                    '매각기일': sale_date,
+                    '매각년월': sale_ym,
+                    '유찰횟수': 0,
+                    '비고': str(r.get('비고', '') or '').strip(),
+                }
+                results.append(item)
+
+    # 경매목록 시트
+    list_sheet = None
+    for name in wb.sheetnames:
+        if '목록' in name:
+            list_sheet = wb[name]
+            break
+
+    if list_sheet:
+        rows = list(list_sheet.iter_rows(values_only=True))
+        if rows:
+            headers = [str(h or '').strip() for h in rows[0]]
+            for row in rows[1:]:
+                r = {headers[i]: (row[i] if i < len(row) else '') for i in range(len(headers))}
+
+                raw_location = str(r.get('물건주소', '') or '')
+                parsed_loc = parse_location(raw_location)
+
+                bid_date_raw = str(r.get('입찰기일', '') or '')
+                bid_date = parse_sale_date(bid_date_raw)
+                bid_ym = parse_sale_month(bid_date_raw)
+
+                appraisal = _to_int(r.get('감정가_원') or r.get('감정평가액'))
+                min_bid = _to_int(r.get('최저입찰가_원', ''))
+
+                try:
+                    fail_count = int(r.get('유찰횟수', 0) or 0)
+                except (ValueError, TypeError):
+                    fail_count = 0
+
+                try:
+                    bid_rate = float(r.get('최저입찰가율', 0) or 0)
+                except (ValueError, TypeError):
+                    bid_rate = 0.0
+
+                usage = str(r.get('진행상태', '') or '').strip()
+                fail_text = str(r.get('유찰횟수_원문', '') or '').strip()
+
+                item = {
+                    '사건번호': str(r.get('사건번호', '') or '').strip(),
+                    '물건번호': str(r.get('물건번호', '') or '').strip(),
+                    '법원': str(r.get('법원', '') or '').strip(),
+                    '용도': usage if usage else '아파트',
+                    '소재지_원본': raw_location,
+                    '주소': parsed_loc['주소'],
+                    '동명': parsed_loc['동명'],
+                    '아파트명': parsed_loc['아파트명'],
+                    '건물구조': parsed_loc['건물구조'],
+                    '전용면적': parsed_loc['전용면적'],
+                    '본번': parsed_loc['본번'],
+                    '부번': parsed_loc['부번'],
+                    '감정가': appraisal,
+                    '최저입찰가': min_bid,
+                    '최저입찰가율': bid_rate,
+                    '매각결과': '',
+                    '경매상태': '경매중',
+                    '매각금액': 0,
+                    '할인율': 0.0,
+                    '매각기일': bid_date,
+                    '매각년월': bid_ym,
+                    '유찰횟수': fail_count,
+                    '유찰횟수_원문': fail_text,
+                    '비고': str(r.get('비고', '') or '').strip(),
+                }
+                results.append(item)
+
+    wb.close()
+    return results

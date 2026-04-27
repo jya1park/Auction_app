@@ -5,6 +5,7 @@ REM 사용법: 작업 스케줄러에 등록 (자세한 내용은 README_SCHEDUL
 REM ====== 설정 ======
 set PROJECT_DIR=C:\Users\jya1p\Documents\Auction_app
 set CSV_DIR=C:\Users\jya1p\Documents\courtauction_crawler\output
+set XLSX_FILE=%CSV_DIR%\courtauction_data.xlsx
 set RESULT_CSV=%CSV_DIR%\courtauction_result.csv
 set LIST_CSV=%CSV_DIR%\courtauction_list.csv
 set LOG_DIR=%PROJECT_DIR%\logs
@@ -23,14 +24,17 @@ echo ============================================ >> "%LOG_FILE%"
 
 cd /d "%PROJECT_DIR%"
 
-REM CSV 파일 존재 확인
-if not exist "%RESULT_CSV%" (
-    echo [오류] CSV 파일 없음: %RESULT_CSV% >> "%LOG_FILE%"
+REM xlsx 파일 우선, 없으면 CSV 사용
+if exist "%XLSX_FILE%" (
+    echo [정보] XLSX 파일 사용: %XLSX_FILE% >> "%LOG_FILE%"
+    python upload_csv.py "%XLSX_FILE%" --clear >> "%LOG_FILE%" 2>&1
+) else if exist "%RESULT_CSV%" (
+    echo [정보] CSV 파일 사용: %RESULT_CSV% >> "%LOG_FILE%"
+    python upload_csv.py "%RESULT_CSV%" --list-csv "%LIST_CSV%" --clear >> "%LOG_FILE%" 2>&1
+) else (
+    echo [오류] 데이터 파일 없음: %XLSX_FILE% >> "%LOG_FILE%"
     exit /b 1
 )
-
-REM 실거래가 업데이트 (실거래가 매칭 + 좌표 변환 + Firestore 업로드)
-python upload_csv.py "%RESULT_CSV%" --list-csv "%LIST_CSV%" --clear >> "%LOG_FILE%" 2>&1
 
 if errorlevel 1 (
     echo [실패] %date% %time% >> "%LOG_FILE%"
