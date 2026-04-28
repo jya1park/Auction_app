@@ -65,22 +65,26 @@ class _TaxChatScreenState extends State<TaxChatScreen> {
 
     setState(() {
       _messages.add(_ChatMessage(text: text.trim(), isUser: true));
+      _messages.add(_ChatMessage(text: '', isUser: false));
       _isLoading = true;
     });
     _scrollToBottom();
 
-    String response;
     try {
-      response = await _aiService.sendMessage(text.trim());
+      await for (final partial in _aiService.sendMessageStream(text.trim())) {
+        if (!mounted) return;
+        setState(() {
+          _messages.last = _ChatMessage(text: partial, isUser: false);
+        });
+        _scrollToBottom();
+      }
     } catch (e) {
-      response = '⚠️ 오류가 발생했습니다.\n\n$e';
+      setState(() {
+        _messages.last = _ChatMessage(text: '⚠️ 오류: $e', isUser: false);
+      });
     }
 
-    setState(() {
-      _messages.add(_ChatMessage(text: response, isUser: false));
-      _isLoading = false;
-    });
-    _scrollToBottom();
+    setState(() => _isLoading = false);
   }
 
   void _clearChat() {

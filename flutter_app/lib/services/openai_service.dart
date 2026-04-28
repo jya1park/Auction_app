@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -237,6 +238,100 @@ class OpenAIService {
     } catch (e) {
       if (_history.isNotEmpty) _history.removeLast();
       return '⚠️ 오류: $e';
+    }
+  }
+
+  Stream<String> sendMessageStream(String message) async* {
+    if (!hasApiKey) {
+      yield '⚠️ flutter_app/.env에 OPENAI_API_KEY를 입력해주세요.';
+      return;
+    }
+
+    await loadKnowledgeBase();
+
+    if (_propertyContext != null) {
+      final address =
+          (_propertyContext!['주소'] ?? _propertyContext!['소재지'])?.toString();
+      _isPropertyRegulated = _checkRegulatedArea(address);
+    }
+
+    // 라우터 (키워드 매칭으로 대체하여 속도 향상)
+    String? ragDoc;
+    final msg = message.toLowerCase();
+    for (final entry in _docDescriptions.entries) {
+      final keywords = entry.value.split(', ');
+      for (final kw in keywords) {
+        if (msg.contains(kw) || kw.contains(msg.replaceAll(' ', ''))) {
+          ragDoc = _docCache[entry.key];
+          break;
+        }
+      }
+      if (ragDoc != null) break;
+    }
+
+    _history.add({'role': 'user', 'content': message});
+
+    final messages = <Map<String, dynamic>>[
+      {'role': 'system', 'content': _buildSystemPrompt(ragDoc)},
+      ..._history,
+    ];
+
+    final body = json.encode({
+      'model': _model,
+      'messages': messages,
+      'stream': true,
+    });
+
+    try {
+      final request = http.Request('POST', Uri.parse(_apiUrl));
+      request.headers['Content-Type'] = 'application/json';
+      request.headers['Authorization'] = 'Bearer $_apiKey';
+      request.body = body;
+
+      final response = await http.Client().send(request);
+
+      if (response.statusCode != 200) {
+        _history.removeLast();
+        yield '⚠️ API 오류 (${response.statusCode})';
+        return;
+      }
+
+      final fullText = StringBuffer();
+      String buffer = '';
+
+      await for (final chunk in response.stream.transform(utf8.decoder)) {
+        buffer += chunk;
+        final lines = buffer.split('\n');
+        buffer = lines.removeLast();
+
+        for (final line in lines) {
+          final trimmed = line.trim();
+          if (!trimmed.startsWith('data: ')) continue;
+          final data = trimmed.substring(6);
+          if (data == '[DONE]') break;
+
+          try {
+            final parsed = json.decode(data);
+            final delta = parsed['choices']?[0]?['delta'];
+            final content = delta?['content'] as String?;
+            if (content != null && content.isNotEmpty) {
+              fullText.write(content);
+              yield fullText.toString();
+            }
+          } catch (_) {}
+        }
+      }
+
+      final result = fullText.toString();
+      if (result.isEmpty) {
+        _history.removeLast();
+        yield '⚠️ 응답을 받지 못했습니다.';
+      } else {
+        _history.add({'role': 'assistant', 'content': result});
+      }
+    } catch (e) {
+      if (_history.isNotEmpty) _history.removeLast();
+      yield '⚠️ 오류: $e';
     }
   }
 
