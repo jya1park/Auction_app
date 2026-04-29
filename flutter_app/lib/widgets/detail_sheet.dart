@@ -707,8 +707,11 @@ ${searchResults.isNotEmpty ? '## 웹 검색 결과 (실제 후기 기반으로 �
 
     try {
       final service = (await _getService());
-      final result = await service.sendMessage(prompt);
-      if (mounted) setState(() { _analysis = result; _loading = false; });
+      await for (final partial in service.sendMessageStream(prompt)) {
+        if (!mounted) return;
+        setState(() { _analysis = partial; });
+      }
+      setState(() { _loading = false; });
     } catch (e) {
       if (mounted) setState(() { _analysis = '⚠️ 분석 실패: $e'; _loading = false; });
     }
@@ -726,22 +729,33 @@ ${searchResults.isNotEmpty ? '## 웹 검색 결과 (실제 후기 기반으로 �
 
     return Scaffold(
       appBar: AppBar(title: Text('$aptName 단지 분석')),
-      body: _loading
-          ? const Center(child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CircularProgressIndicator(),
-                SizedBox(height: 16),
-                Text('AI가 단지를 분석 중입니다...'),
-              ],
-            ))
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: SelectableText(
-                _analysis ?? '',
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (_analysis != null && _analysis!.isNotEmpty)
+              SelectableText(
+                _analysis!,
                 style: const TextStyle(fontSize: 15, height: 1.7),
               ),
-            ),
+            if (_loading)
+              const Padding(
+                padding: EdgeInsets.only(top: 12),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 16, height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                    SizedBox(width: 8),
+                    Text('분석 중...', style: TextStyle(color: Colors.grey)),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }
