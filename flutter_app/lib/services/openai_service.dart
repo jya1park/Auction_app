@@ -255,19 +255,12 @@ class OpenAIService {
       _isPropertyRegulated = _checkRegulatedArea(address);
     }
 
-    // 라우터 (키워드 매칭으로 대체하여 속도 향상)
+    // LLM 라우터: 문서 선택
     String? ragDoc;
-    final msg = message.toLowerCase();
-    for (final entry in _docDescriptions.entries) {
-      final keywords = entry.value.split(', ');
-      for (final kw in keywords) {
-        if (msg.contains(kw) || kw.contains(msg.replaceAll(' ', ''))) {
-          ragDoc = _docCache[entry.key];
-          break;
-        }
-      }
-      if (ragDoc != null) break;
-    }
+    try {
+      final file = await _routeDocument(message);
+      if (file != null) ragDoc = _docCache[file];
+    } catch (_) {}
 
     _history.add({'role': 'user', 'content': message});
 
