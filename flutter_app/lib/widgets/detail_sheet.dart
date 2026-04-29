@@ -625,13 +625,68 @@ class _PropertyAnalysisScreenState extends State<_PropertyAnalysisScreen> {
     final p = widget.property;
     final aptName = p['아파트명'] ?? '';
     final address = p['주소'] ?? p['소재지'] ?? '';
+    final dong = p['동명'] ?? '';
     final usage = p['용도'] ?? p['물건종류'] ?? '';
     final area = p['전용면적'] ?? '';
+    final structure = p['건물구조'] ?? '';
+    final appraisal = p['감정가'];
+    final saleAmount = p['매각금액'];
+    final court = p['법원'] ?? '';
+    final note = p['비고'] ?? '';
 
-    final prompt = '이 아파트에 실제 거주할 때 좋은 점 5가지와 불편한 점 5가지를 알려줘.\n'
-        '투자 관점이 아닌 생활·거주 관점으로 분석해줘. (교통, 학군, 편의시설, 소음, 주차, 채광, 단지환경 등)\n'
-        '물건: $aptName\n주소: $address\n용도: $usage\n면적: ${area}㎡\n\n'
-        '형식:\n👍 거주 장점\n1. ...\n2. ...\n3. ...\n4. ...\n5. ...\n\n👎 거주 단점\n1. ...\n2. ...\n3. ...\n4. ...\n5. ...';
+    // 실거래가 정보
+    String tradeInfo = '';
+    final tradeList = p['실거래가목록'];
+    if (tradeList is List && tradeList.isNotEmpty) {
+      for (final g in tradeList) {
+        final gArea = g['전용면적'] ?? '';
+        final trades = g['최근거래'];
+        if (trades is List && trades.isNotEmpty) {
+          final t = trades[0];
+          tradeInfo += '${gArea}㎡ 최근거래: ${t['년']}.${t['월']} ${t['거래금액']}만원 ${t['층'] ?? ''}층\n';
+        }
+      }
+    }
+
+    final info = StringBuffer();
+    info.writeln('물건: $aptName');
+    info.writeln('주소: $address');
+    if (dong.isNotEmpty) info.writeln('법정동: $dong');
+    info.writeln('용도: $usage');
+    if (area != null && area.toString().isNotEmpty) info.writeln('전용면적: ${area}㎡');
+    if (structure.isNotEmpty) info.writeln('건물구조: $structure');
+    if (appraisal != null) info.writeln('감정가: $appraisal원');
+    if (saleAmount != null && saleAmount != 0) info.writeln('낙찰가: $saleAmount원');
+    if (court.isNotEmpty) info.writeln('법원: $court');
+    if (note.isNotEmpty) info.writeln('비고: $note');
+    if (tradeInfo.isNotEmpty) info.writeln('실거래가:\n$tradeInfo');
+
+    final prompt = '''아래 아파트의 실제 거주 관점 분석을 해줘.
+
+${info.toString()}
+분석 기준:
+- 교통 (지하철/버스 접근성, 주요 도심 출퇴근)
+- 학군 (초중고 배정, 학원가)
+- 생활편의 (마트, 병원, 공원, 상가)
+- 단지환경 (동간 거리, 주차, 소음, 채광, 조경)
+- 건물상태 (건축년도 추정, 구조, 리모델링/재건축 여부)
+
+형식:
+👍 거주 장점
+1. [교통/학군/편의/단지/건물 중 택1] 구체적 내용
+2. ...
+3. ...
+4. ...
+5. ...
+
+👎 거주 단점
+1. [교통/학군/편의/단지/건물 중 택1] 구체적 내용
+2. ...
+3. ...
+4. ...
+5. ...
+
+각 항목은 한 줄로 간결하게. 해당 단지에 특화된 내용만.''';
 
     try {
       final service = (await _getService());
