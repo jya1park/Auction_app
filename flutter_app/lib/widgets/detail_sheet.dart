@@ -663,19 +663,24 @@ class _PropertyAnalysisScreenState extends State<_PropertyAnalysisScreen> {
     if (note.isNotEmpty) info.writeln('비고: $note');
     if (tradeInfo.isNotEmpty) info.writeln('실거래가:\n$tradeInfo');
 
-    // 네이버 검색으로 실제 후기/하자 정보 수집
+    // 네이버 검색으로 실제 후기/하자/임장 정보 수집
     String searchResults = '';
     if (NaverSearchService.hasKeys && aptName.isNotEmpty) {
       if (mounted) setState(() { _analysis = '🔍 네이버에서 후기 검색 중...'; });
       try {
-        final reviewResults = await NaverSearchService.searchResults('$aptName 후기 거주 장단점', display: 3);
+        final reviewResults = await NaverSearchService.searchResults('$aptName 후기 거주 장단점', display: 4);
+        if (mounted) setState(() { _analysis = '🔍 하자/시공 정보 검색 중...'; });
         final defectResults = await NaverSearchService.searchResults('$aptName 하자 시공 결로 누수', display: 3);
-        _sources = [...reviewResults, ...defectResults];
+        if (mounted) setState(() { _analysis = '🔍 임장 후기 검색 중...'; });
+        final visitResults = await NaverSearchService.searchResults('$aptName 임장 후기 현장 방문', display: 3);
+        _sources = [...reviewResults, ...defectResults, ...visitResults];
 
         final reviewText = reviewResults.map((r) => '- ${r.title}: ${r.description}').join('\n');
         final defectText = defectResults.map((r) => '- ${r.title}: ${r.description}').join('\n');
+        final visitText = visitResults.map((r) => '- ${r.title}: ${r.description}').join('\n');
         if (reviewText.isNotEmpty) searchResults += '## 거주 후기 (네이버 검색)\n$reviewText\n';
         if (defectText.isNotEmpty) searchResults += '## 하자/시공 정보 (네이버 검색)\n$defectText\n';
+        if (visitText.isNotEmpty) searchResults += '## 임장 후기 (네이버 검색)\n$visitText\n';
       } catch (_) {}
       if (mounted) setState(() { _analysis = '🤖 AI 분석 중...'; });
     }
