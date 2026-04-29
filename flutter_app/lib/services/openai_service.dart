@@ -256,11 +256,19 @@ class OpenAIService {
     }
 
     // LLM 라우터: 문서 선택
+    yield '📂 관련 자료 검색 중...\n';
     String? ragDoc;
+    String? selectedFile;
     try {
-      final file = await _routeDocument(message);
-      if (file != null) ragDoc = _docCache[file];
+      selectedFile = await _routeDocument(message);
+      if (selectedFile != null) ragDoc = _docCache[selectedFile];
     } catch (_) {}
+
+    if (selectedFile != null) {
+      yield '📂 ${_docDescriptions[selectedFile] ?? selectedFile} 참고 중...\n';
+    } else {
+      yield '📂 관련 자료 없이 답변합니다...\n';
+    }
 
     _history.add({'role': 'user', 'content': message});
 
