@@ -663,7 +663,7 @@ class _PropertyAnalysisScreenState extends State<_PropertyAnalysisScreen> {
     if (note.isNotEmpty) info.writeln('비고: $note');
     if (tradeInfo.isNotEmpty) info.writeln('실거래가:\n$tradeInfo');
 
-    // 네이버 검색으로 실제 후기/하자/임장 정보 수집
+    // 네이버 검색으로 실제 후기/하자/임장 정보 수집 + 본문 크롤링
     String searchResults = '';
     if (NaverSearchService.hasKeys && aptName.isNotEmpty) {
       if (mounted) setState(() { _analysis = '🔍 네이버에서 후기 검색 중...'; });
@@ -675,12 +675,22 @@ class _PropertyAnalysisScreenState extends State<_PropertyAnalysisScreen> {
         final visitResults = await NaverSearchService.searchResults('$aptName 임장 후기 현장 방문', display: 3);
         _sources = [...reviewResults, ...defectResults, ...visitResults];
 
-        final reviewText = reviewResults.map((r) => '- ${r.title}: ${r.description}').join('\n');
-        final defectText = defectResults.map((r) => '- ${r.title}: ${r.description}').join('\n');
-        final visitText = visitResults.map((r) => '- ${r.title}: ${r.description}').join('\n');
-        if (reviewText.isNotEmpty) searchResults += '## 거주 후기 (네이버 검색)\n$reviewText\n';
-        if (defectText.isNotEmpty) searchResults += '## 하자/시공 정보 (네이버 검색)\n$defectText\n';
-        if (visitText.isNotEmpty) searchResults += '## 임장 후기 (네이버 검색)\n$visitText\n';
+        // 블로그 본문 크롤링
+        if (mounted) setState(() { _analysis = '📄 블로그 본문 수집 중 (${_sources.length}건)...'; });
+        await NaverSearchService.fetchBodies(_sources, maxChars: 800);
+
+        for (final r in reviewResults) {
+          final content = r.body.isNotEmpty ? r.body : r.description;
+          searchResults += '### ${r.title}\n$content\n\n';
+        }
+        for (final r in defectResults) {
+          final content = r.body.isNotEmpty ? r.body : r.description;
+          searchResults += '### ${r.title}\n$content\n\n';
+        }
+        for (final r in visitResults) {
+          final content = r.body.isNotEmpty ? r.body : r.description;
+          searchResults += '### ${r.title}\n$content\n\n';
+        }
       } catch (_) {}
       if (mounted) setState(() { _analysis = '🤖 AI 분석 중...'; });
     }
