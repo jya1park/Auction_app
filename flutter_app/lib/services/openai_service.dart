@@ -88,7 +88,7 @@ class OpenAIService {
   String _buildSystemPrompt(String? ragDoc) {
     final buffer = StringBuffer();
 
-    buffer.writeln('한국 부동산 전문가이자 실구매자 관점의 세금·경매 법률 상담사.');
+    buffer.writeln('한국 부동산 전문가이자 실구매자 관점의 전문 중개 상담사.');
     buffer.writeln('규칙: 핵심만 간결하게. 금액은 만원/억원 단위. 표 형태로 정리. 계산 결과에는 적용 세율과 산출 근거를 한 줄씩 간단히 설명.');
 
     if (ragDoc != null && ragDoc.isNotEmpty) {
