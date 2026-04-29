@@ -615,6 +615,7 @@ class _PropertyAnalysisScreen extends StatefulWidget {
 class _PropertyAnalysisScreenState extends State<_PropertyAnalysisScreen> {
   String? _analysis;
   bool _loading = true;
+  List<SearchResult> _sources = [];
 
   @override
   void initState() {
@@ -667,10 +668,14 @@ class _PropertyAnalysisScreenState extends State<_PropertyAnalysisScreen> {
     if (NaverSearchService.hasKeys && aptName.isNotEmpty) {
       if (mounted) setState(() { _analysis = '🔍 네이버에서 후기 검색 중...'; });
       try {
-        final review = await NaverSearchService.search('$aptName 후기 거주 장단점', display: 3);
-        final defect = await NaverSearchService.search('$aptName 하자 시공 결로 누수', display: 3);
-        if (review.isNotEmpty) searchResults += '## 거주 후기 (네이버 검색)\n$review\n';
-        if (defect.isNotEmpty) searchResults += '## 하자/시공 정보 (네이버 검색)\n$defect\n';
+        final reviewResults = await NaverSearchService.searchResults('$aptName 후기 거주 장단점', display: 3);
+        final defectResults = await NaverSearchService.searchResults('$aptName 하자 시공 결로 누수', display: 3);
+        _sources = [...reviewResults, ...defectResults];
+
+        final reviewText = reviewResults.map((r) => '- ${r.title}: ${r.description}').join('\n');
+        final defectText = defectResults.map((r) => '- ${r.title}: ${r.description}').join('\n');
+        if (reviewText.isNotEmpty) searchResults += '## 거주 후기 (네이버 검색)\n$reviewText\n';
+        if (defectText.isNotEmpty) searchResults += '## 하자/시공 정보 (네이버 검색)\n$defectText\n';
       } catch (_) {}
       if (mounted) setState(() { _analysis = '🤖 AI 분석 중...'; });
     }
@@ -753,6 +758,65 @@ ${searchResults.isNotEmpty ? '## 웹 검색 결과 (실제 후기 기반으로 �
                   ],
                 ),
               ),
+            if (!_loading && _sources.isNotEmpty) ...[
+              const SizedBox(height: 24),
+              const Divider(),
+              const SizedBox(height: 8),
+              Text(
+                '📎 분석 근거 (${_sources.length}건)',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              ..._sources.asMap().entries.map((entry) {
+                final i = entry.key;
+                final s = entry.value;
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: InkWell(
+                    onTap: () => launchUrl(
+                      Uri.parse(s.link),
+                      mode: LaunchMode.externalApplication,
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('${i + 1}. ',
+                            style: const TextStyle(fontSize: 13, color: Colors.grey)),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                s.title,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: Theme.of(context).colorScheme.primary,
+                                  decoration: TextDecoration.underline,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                s.description,
+                                style: const TextStyle(fontSize: 12, color: Colors.grey),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }),
+            ],
           ],
         ),
       ),
