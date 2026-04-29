@@ -3,6 +3,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import '../screens/tax_chat_screen.dart';
 import '../services/openai_service.dart';
+import '../services/naver_search_service.dart';
 
 /// 마커 탭 시 하단에서 올라오는 상세정보 시트
 class DetailSheet extends StatelessWidget {
@@ -661,9 +662,23 @@ class _PropertyAnalysisScreenState extends State<_PropertyAnalysisScreen> {
     if (note.isNotEmpty) info.writeln('비고: $note');
     if (tradeInfo.isNotEmpty) info.writeln('실거래가:\n$tradeInfo');
 
+    // 네이버 검색으로 실제 후기/하자 정보 수집
+    String searchResults = '';
+    if (NaverSearchService.hasKeys && aptName.isNotEmpty) {
+      if (mounted) setState(() { _analysis = '🔍 네이버에서 후기 검색 중...'; });
+      try {
+        final review = await NaverSearchService.search('$aptName 후기 거주 장단점', display: 3);
+        final defect = await NaverSearchService.search('$aptName 하자 시공 결로 누수', display: 3);
+        if (review.isNotEmpty) searchResults += '## 거주 후기 (네이버 검색)\n$review\n';
+        if (defect.isNotEmpty) searchResults += '## 하자/시공 정보 (네이버 검색)\n$defect\n';
+      } catch (_) {}
+      if (mounted) setState(() { _analysis = '🤖 AI 분석 중...'; });
+    }
+
     final prompt = '''아래 아파트의 실제 거주 관점 분석을 해줘.
 
 ${info.toString()}
+${searchResults.isNotEmpty ? '## 웹 검색 결과 (실제 후기 기반으로 분석할 것)\n$searchResults' : ''}
 분석 기준:
 - 교통 (지하철/버스 접근성, 주요 도심 출퇴근)
 - 학군 (초중고 배정, 학원가)
