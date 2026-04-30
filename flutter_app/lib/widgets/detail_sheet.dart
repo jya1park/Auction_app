@@ -688,25 +688,25 @@ class _PropertyAnalysisScreenState extends State<_PropertyAnalysisScreen> {
     }
 
     final prompt = '''${info.toString()}
-${searchResults.isNotEmpty ? '## 블로그 후기\n$searchResults' : ''}
-위 블로그 후기와 물건 정보를 기반으로 아래 형식 그대로 작성해줘.
+${searchResults.isNotEmpty ? '## 참고자료 (블로그 후기)\n$searchResults' : ''}
+위 참고자료를 근거로 이 아파트 단지 자체를 평가해줘.
+블로그 내용을 요약하지 말고, 이 아파트에 실제 거주할 때의 장단점을 분석해줘.
 
-📝 블로그 후기 요약
 👍 긍정적 피드백
-1. (후기에서 발견된 긍정적 내용 한 줄)
+1. (이 아파트의 장점 한 줄)
 2. (한 줄)
 3. (한 줄)
 4. (한 줄)
 5. (한 줄)
 
 👎 부정적 피드백
-1. (후기에서 발견된 부정적 내용 한 줄)
+1. (이 아파트의 단점 한 줄)
 2. (한 줄)
 3. (한 줄)
 4. (한 줄)
 5. (한 줄)
 
-교통·학군·편의·단지·건물·시공하자 중에서 작성. 후기에 근거가 있는 내용 우선. 반드시 위 형식을 지켜서 출력.''';
+교통·학군·편의·단지·건물·시공하자 중에서 작성. 반드시 위 형식을 지켜서 출력.''';
 
     try {
       final service = await _getService();
