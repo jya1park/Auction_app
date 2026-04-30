@@ -231,7 +231,7 @@ class DetailSheet extends StatelessWidget {
                   );
                 },
                 icon: const Icon(Icons.support_agent, size: 18),
-                label: const Text('세금 상담'),
+                label: const Text('경매 상담'),
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   shape: RoundedRectangleBorder(

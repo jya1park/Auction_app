@@ -88,8 +88,8 @@ class OpenAIService {
   String _buildSystemPrompt(String? ragDoc) {
     final buffer = StringBuffer();
 
-    buffer.writeln('한국 부동산 전문가이자 실구매자 관점의 전문 중개 상담사.');
-    buffer.writeln('규칙: 핵심만 간결하게. 금액은 만원/억원 단위. 표 형태로 정리. 계산 결과에는 적용 세율과 산출 근거를 한 줄씩 간단히 설명.');
+    buffer.writeln('한국 부동산 정책과 경매 전문 상담사. 현행 부동산 규제, 경매 절차, 권리분석, 임대차보호법에 정통.');
+    buffer.writeln('규칙: 핵심만 간결하게. 금액은 만원/억원 단위. 표 형태로 정리.');
 
     if (ragDoc != null && ragDoc.isNotEmpty) {
       final trimmed = ragDoc.length > 1500
