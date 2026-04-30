@@ -627,17 +627,9 @@ class _PropertyAnalysisScreenState extends State<_PropertyAnalysisScreen> {
     final p = widget.property;
     final aptName = (p['아파트명'] ?? '').toString();
     final address = (p['주소'] ?? p['소재지'] ?? '').toString();
-    final area = p['전용면적'] ?? '';
-    final structure = (p['건물구조'] ?? '').toString();
-    final usage = (p['용도'] ?? p['물건종류'] ?? '').toString();
 
     // 물건 정보 (핵심만)
-    final info = '$aptName ($address)\n'
-        '${area.toString().isNotEmpty ? "$area㎡" : ""}'
-        '${structure.isNotEmpty ? " / $structure" : usage.isNotEmpty ? " / $usage" : ""}';
-
-    // 네이버 검색 + 블로그 크롤링
-    String searchContext = '';
+    // 네이버 검색 (분석 근거 링크 수집용)
     if (NaverSearchService.hasKeys && aptName.isNotEmpty) {
       _updateStatus('🔍 실거주 후기 검색 중...');
       final reviews = await NaverSearchService.searchResults(
@@ -648,27 +640,13 @@ class _PropertyAnalysisScreenState extends State<_PropertyAnalysisScreen> {
       _updateStatus('🔍 임장 후기 검색 중...');
       final visits = await NaverSearchService.searchResults(
           '$aptName 임장 후기 현장 방문 답사', display: 4);
-
-      final allResults = [...reviews, ...defects, ...visits];
-
-      _updateStatus('📄 블로그 본문 수집 중 (${allResults.length}건)...');
-      await NaverSearchService.fetchBodies(allResults, maxChars: 800);
-
-      _sources = allResults;
-
-      final buf = StringBuffer();
-      for (var i = 0; i < allResults.length; i++) {
-        final r = allResults[i];
-        final content = r.body.isNotEmpty ? r.body : r.description;
-        buf.writeln('[${i + 1}] $content');
-      }
-      searchContext = buf.toString();
+      _sources = [...reviews, ...defects, ...visits];
     }
 
     _updateStatus('🤖 AI 분석 중...');
 
     // GPT 프롬프트 (형식 지시를 앞에, 참고자료를 뒤에)
-    final prompt = '''다음 아파트를 실거주 관점에서 평가해줘.
+    final prompt = '''$aptName ($address) 아파트를 실거주 관점에서 평가해줘.
 블로그 내용을 요약하지 말고, 아파트 자체의 장단점을 판단해줘.
 교통·학군·편의·단지·건물·시공하자 중에서 작성.
 반드시 아래 형식 그대로 출력.
@@ -685,12 +663,7 @@ class _PropertyAnalysisScreenState extends State<_PropertyAnalysisScreen> {
 2. (한 줄)
 3. (한 줄)
 4. (한 줄)
-5. (한 줄)
-
-## 물건
-$info
-
-${searchContext.isNotEmpty ? '## 참고자료\n$searchContext' : ''}''';
+5. (한 줄)''';
 
     try {
       final service = OpenAIService();
