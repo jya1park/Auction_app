@@ -651,17 +651,9 @@ class _PropertyAnalysisScreenState extends State<_PropertyAnalysisScreen> {
     }
 
     final info = StringBuffer();
-    info.writeln('물건: $aptName');
-    info.writeln('주소: $address');
-    if (dong.isNotEmpty) info.writeln('법정동: $dong');
-    info.writeln('용도: $usage');
-    if (area != null && area.toString().isNotEmpty) info.writeln('전용면적: ${area}㎡');
-    if (structure.isNotEmpty) info.writeln('건물구조: $structure');
-    if (appraisal != null) info.writeln('감정가: $appraisal원');
-    if (saleAmount != null && saleAmount != 0) info.writeln('낙찰가: $saleAmount원');
-    if (court.isNotEmpty) info.writeln('법원: $court');
-    if (note.isNotEmpty) info.writeln('비고: $note');
-    if (tradeInfo.isNotEmpty) info.writeln('실거래가:\n$tradeInfo');
+    info.writeln('$aptName ($address)');
+    if (area != null && area.toString().isNotEmpty) info.writeln('${area}㎡ / ${structure.isNotEmpty ? structure : usage}');
+    if (tradeInfo.isNotEmpty) info.writeln('실거래가: $tradeInfo');
 
     // 네이버 검색으로 실제 후기/하자/임장 정보 수집 + 본문 크롤링
     String searchResults = '';
@@ -695,39 +687,19 @@ class _PropertyAnalysisScreenState extends State<_PropertyAnalysisScreen> {
       if (mounted) setState(() { _analysis = '🤖 AI 분석 중...'; });
     }
 
-    final prompt = '''아래 아파트의 실제 거주 관점 분석을 해줘.
-
-${info.toString()}
-${searchResults.isNotEmpty ? '## 웹 검색 결과 (실제 후기 기반으로 분석할 것)\n$searchResults' : ''}
-분석 기준:
-- 교통 (지하철/버스 접근성, 주요 도심 출퇴근)
-- 학군 (초중고 배정, 학원가)
-- 생활편의 (마트, 병원, 공원, 상가)
-- 단지환경 (동간 거리, 주차, 소음, 채광, 조경)
-- 건물상태 (건축년도 추정, 구조, 리모델링/재건축 여부)
-- 시공/하자 (시공사 평판, 알려진 하자 이력, 결로/누수/균열 등 공통 하자, 하자보수 이력)
-
-형식:
+    final prompt = '''${info.toString()}
+${searchResults.isNotEmpty ? '## 후기\n$searchResults' : ''}
+위 정보를 기반으로 거주 관점 분석. 교통·학군·편의·단지·건물·시공하자 포함. 한 줄씩 간결하게.
 
 👍 긍정적 피드백
-1. [교통/학군/편의/단지/건물/시공 중 택1] 구체적 내용
-2. ...
-3. ...
-4. ...
-5. ...
+1~5
 
 👎 부정적 피드백
-1. [교통/학군/편의/단지/건물/시공 중 택1] 구체적 내용
-2. ...
-3. ...
-4. ...
-5. ...
-
-각 항목은 한 줄로 간결하게. 거주·시공·하자를 모두 포함. 해당 단지에 특화된 내용만. 모르는 정보는 '확인 필요'로 표기.''';
+1~5''';
 
     try {
-      final service = (await _getService());
-      await for (final partial in service.sendMessageStream(prompt)) {
+      final service = await _getService();
+      await for (final partial in service.sendMessageStream(prompt, systemOverride: '한국 부동산 전문가이자 실구매자 관점의 전문 중개 상담사. 간결하게 답변.')) {
         if (!mounted) return;
         setState(() { _analysis = partial; });
       }

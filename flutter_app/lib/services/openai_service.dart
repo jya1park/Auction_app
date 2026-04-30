@@ -241,7 +241,7 @@ class OpenAIService {
     }
   }
 
-  Stream<String> sendMessageStream(String message) async* {
+  Stream<String> sendMessageStream(String message, {String? systemOverride}) async* {
     if (!hasApiKey) {
       yield '⚠️ flutter_app/.env에 OPENAI_API_KEY를 입력해주세요.';
       return;
@@ -255,25 +255,28 @@ class OpenAIService {
       _isPropertyRegulated = _checkRegulatedArea(address);
     }
 
-    // LLM 라우터: 문서 선택
-    yield '📂 관련 자료 검색 중...\n';
+    // LLM 라우터: 문서 선택 (systemOverride 시 스킵)
     String? ragDoc;
-    String? selectedFile;
-    try {
-      selectedFile = await _routeDocument(message);
-      if (selectedFile != null) ragDoc = _docCache[selectedFile];
-    } catch (_) {}
+    if (systemOverride == null) {
+      yield '📂 관련 자료 검색 중...\n';
+      String? selectedFile;
+      try {
+        selectedFile = await _routeDocument(message);
+        if (selectedFile != null) ragDoc = _docCache[selectedFile];
+      } catch (_) {}
 
-    if (selectedFile != null) {
-      yield '📂 ${_docDescriptions[selectedFile] ?? selectedFile} 참고 중...\n';
-    } else {
-      yield '📂 관련 자료 없이 답변합니다...\n';
+      if (selectedFile != null) {
+        yield '📂 ${_docDescriptions[selectedFile] ?? selectedFile} 참고 중...\n';
+      } else {
+        yield '📂 관련 자료 없이 답변합니다...\n';
+      }
     }
 
     _history.add({'role': 'user', 'content': message});
 
+    final systemPrompt = systemOverride ?? _buildSystemPrompt(ragDoc);
     final messages = <Map<String, dynamic>>[
-      {'role': 'system', 'content': _buildSystemPrompt(ragDoc)},
+      {'role': 'system', 'content': systemPrompt},
       ..._history,
     ];
 
