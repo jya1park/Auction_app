@@ -662,9 +662,9 @@ class _PropertyAnalysisScreenState extends State<_PropertyAnalysisScreen> {
       try {
         final reviewResults = await NaverSearchService.searchResults('$aptName 후기 거주 장단점', display: 4);
         if (mounted) setState(() { _analysis = '🔍 하자/시공 정보 검색 중...'; });
-        final defectResults = await NaverSearchService.searchResults('$aptName 하자 시공 결로 누수', display: 3);
+        final defectResults = await NaverSearchService.searchResults('$aptName 하자 시공 결로 누수', display: 2);
         if (mounted) setState(() { _analysis = '🔍 임장 후기 검색 중...'; });
-        final visitResults = await NaverSearchService.searchResults('$aptName 임장 후기 현장 방문', display: 3);
+        final visitResults = await NaverSearchService.searchResults('$aptName 임장 후기 현장 방문', display: 4);
         _sources = [...reviewResults, ...defectResults, ...visitResults];
 
         // 블로그 본문 크롤링
