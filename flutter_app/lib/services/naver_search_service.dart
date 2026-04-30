@@ -53,8 +53,8 @@ class NaverSearchService {
   /// 블로그 본문 크롤링 (각 SearchResult의 body 채우기)
   static Future<void> fetchBodies(List<SearchResult> results,
       {int maxChars = 1000}) async {
-    for (final r in results) {
-      if (r.link.isEmpty) continue;
+    await Future.wait(results.map((r) async {
+      if (r.link.isEmpty) return;
       try {
         final response = await http
             .get(Uri.parse(r.link), headers: {
@@ -71,7 +71,7 @@ class NaverSearchService {
               : text;
         }
       } catch (_) {}
-    }
+    }));
   }
 
   /// HTML에서 본문 텍스트 추출
