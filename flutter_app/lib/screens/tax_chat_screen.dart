@@ -35,9 +35,9 @@ class _TaxChatScreenState extends State<TaxChatScreen> {
     String welcome;
     if (hasProperty) {
       final name = widget.property!['아파트명'] ?? '해당 물건';
-      welcome = '안녕하세요! 부동산 정책·경매 전문 상담사입니다.\n\n'
-          '[$name]에 대해 궁금한 점을 물어보세요.\n\n'
-          '예) "이 물건 권리분석 해줘", "대항력 있는 임차인 있어?"';
+      welcome = '안녕하세요! 부동산 세금 전문 상담사입니다.\n\n'
+          '[$name]에 대해 궁금하신 세금 관련 질문을 해주세요.\n\n'
+          '예) "이 물건 취득세 얼마야?", "다주택자인데 세금은?"';
     } else {
       welcome = '안녕하세요! 부동산 정책·경매 전문 상담사입니다.\n\n'
           '경매 절차, 권리분석, 부동산 정책, 세금 등 궁금한 점을 물어보세요.\n\n'
@@ -128,7 +128,7 @@ class _TaxChatScreenState extends State<TaxChatScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('경매 상담'),
+        title: Text(widget.property != null ? '세금 상담' : '경매 상담'),
         actions: [
           IconButton(
             onPressed: _clearChat,
@@ -227,9 +227,9 @@ class _TaxChatScreenState extends State<TaxChatScreen> {
 
   Widget _buildQuickChips(ColorScheme colorScheme) {
     final chips = [
-      ('권리분석', '이 물건의 권리분석을 해주세요. 말소기준권리, 인수되는 권리, 임차인 대항력 여부를 확인해주세요.'),
-      ('세금 계산', '이 물건의 취득세를 계산해주세요. 조정대상지역 여부와 1주택자 기준으로 알려주세요.'),
-      ('입찰 시 주의', '이 물건 경매 입찰 시 주의할 점을 알려주세요. 유치권, 임차인, 법정지상권 등 리스크를 확인해주세요.'),
+      ('취득세는?', '이 물건의 취득세를 계산해주세요. 조정대상지역 여부와 1주택자 기준으로 부가세, 인지세까지 포함해서 알려주세요.'),
+      ('양도세는?', '이 물건을 3년 후 시세 대비 20% 오른 가격에 매도한다고 가정하고, 양도소득세를 계산해주세요.'),
+      ('총 비용은?', '이 물건을 낙찰받을 때 필요한 총 비용을 정리해주세요. 낙찰대금, 취득세, 부가세, 인지세, 법무사 비용, 예상 명도비까지 포함해주세요.'),
     ];
 
     return Container(
@@ -268,7 +268,9 @@ class _TaxChatScreenState extends State<TaxChatScreen> {
               controller: _controller,
               focusNode: _focusNode,
               decoration: InputDecoration(
-                hintText: '경매·부동산 정책 관련 질문을 입력하세요',
+                hintText: widget.property != null
+                    ? '세금 관련 질문을 입력하세요'
+                    : '경매·부동산 정책 관련 질문을 입력하세요',
                 hintStyle: TextStyle(
                   fontSize: 14,
                   color: colorScheme.onSurface.withOpacity(0.5),
