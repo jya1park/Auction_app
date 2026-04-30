@@ -26,6 +26,7 @@ class _MapScreenState extends State<MapScreen> {
   bool _showOngoing = true;
   bool _showSold = true;
   bool _showUnsold = true;
+  String _lastUpdate = '';
 
   // .env에서 읽을 수도 있지만, 빌드 시 교체됨
   static const _kakaoJsKey = String.fromEnvironment(
@@ -93,8 +94,18 @@ class _MapScreenState extends State<MapScreen> {
       if (items.isNotEmpty) {
         debugPrint('[Firestore] 첫 항목 샘플: ${items.first.keys.join(", ")}');
       }
+      String latest = '';
+      for (final item in items) {
+        final uploaded = (item['_uploaded_at'] ?? '').toString();
+        if (uploaded.isNotEmpty && uploaded.compareTo(latest) > 0) {
+          latest = uploaded;
+        }
+      }
+      if (latest.length >= 10) latest = latest.substring(0, 10);
+
       setState(() {
         _items = items;
+        _lastUpdate = latest;
         _isLoading = false;
       });
       _sendDataToMap();
@@ -151,7 +162,15 @@ class _MapScreenState extends State<MapScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Map'),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Map', style: TextStyle(fontSize: 18)),
+            if (_lastUpdate.isNotEmpty)
+              Text('업데이트: $_lastUpdate',
+                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+          ],
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
