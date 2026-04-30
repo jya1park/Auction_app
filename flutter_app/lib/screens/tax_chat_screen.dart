@@ -21,6 +21,15 @@ class _TaxChatScreenState extends State<TaxChatScreen> {
   final List<_ChatMessage> _messages = [];
   bool _isLoading = false;
 
+  bool get _isMainMode => widget.property == null;
+
+  static const _mainSystemPrompt =
+      '한국 부동산 정책·경매 전문 상담사. '
+      '현행 부동산 규제(조정대상지역, 투기과열지구, 대출규제, 전매제한), '
+      '경매 절차(입찰→낙찰→명도), 권리분석(말소기준권리, 대항력, 유치권), '
+      '주택임대차보호법(소액임차인, 우선변제권, 배당순위)에 정통. '
+      '핵심만 간결하게 답변.';
+
   @override
   void initState() {
     super.initState();
@@ -71,7 +80,10 @@ class _TaxChatScreenState extends State<TaxChatScreen> {
     _scrollToBottom();
 
     try {
-      await for (final partial in _aiService.sendMessageStream(text.trim())) {
+      final stream = _isMainMode
+          ? _aiService.sendMessageStream(text.trim(), systemOverride: _mainSystemPrompt)
+          : _aiService.sendMessageStream(text.trim());
+      await for (final partial in stream) {
         if (!mounted) return;
         setState(() {
           _messages.last = _ChatMessage(text: partial, isUser: false);
