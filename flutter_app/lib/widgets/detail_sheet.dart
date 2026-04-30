@@ -625,72 +625,53 @@ class _PropertyAnalysisScreenState extends State<_PropertyAnalysisScreen> {
 
   Future<void> _loadAnalysis() async {
     final p = widget.property;
-    final aptName = p['아파트명'] ?? '';
-    final address = p['주소'] ?? p['소재지'] ?? '';
-    final dong = p['동명'] ?? '';
-    final usage = p['용도'] ?? p['물건종류'] ?? '';
+    final aptName = (p['아파트명'] ?? '').toString();
+    final address = (p['주소'] ?? p['소재지'] ?? '').toString();
     final area = p['전용면적'] ?? '';
-    final structure = p['건물구조'] ?? '';
-    final appraisal = p['감정가'];
-    final saleAmount = p['매각금액'];
-    final court = p['법원'] ?? '';
-    final note = p['비고'] ?? '';
+    final structure = (p['건물구조'] ?? '').toString();
+    final usage = (p['용도'] ?? p['물건종류'] ?? '').toString();
 
-    // 실거래가 정보
-    String tradeInfo = '';
-    final tradeList = p['실거래가목록'];
-    if (tradeList is List && tradeList.isNotEmpty) {
-      for (final g in tradeList) {
-        final gArea = g['전용면적'] ?? '';
-        final trades = g['최근거래'];
-        if (trades is List && trades.isNotEmpty) {
-          final t = trades[0];
-          tradeInfo += '${gArea}㎡ 최근거래: ${t['년']}.${t['월']} ${t['거래금액']}만원 ${t['층'] ?? ''}층\n';
-        }
-      }
-    }
+    // 물건 정보 (핵심만)
+    final info = '$aptName ($address)\n'
+        '${area.toString().isNotEmpty ? "$area㎡" : ""}'
+        '${structure.isNotEmpty ? " / $structure" : usage.isNotEmpty ? " / $usage" : ""}';
 
-    final info = StringBuffer();
-    info.writeln('$aptName ($address)');
-    if (area != null && area.toString().isNotEmpty) info.writeln('${area}㎡ / ${structure.isNotEmpty ? structure : usage}');
-    if (tradeInfo.isNotEmpty) info.writeln('실거래가: $tradeInfo');
-
-    // 네이버 검색으로 실제 후기/하자/임장 정보 수집 + 본문 크롤링
-    String searchResults = '';
+    // 네이버 검색 + 블로그 크롤링
+    String searchContext = '';
     if (NaverSearchService.hasKeys && aptName.isNotEmpty) {
-      if (mounted) setState(() { _analysis = '🔍 네이버에서 실거주 후기 검색 중...'; });
-      try {
-        final reviewResults = await NaverSearchService.searchResults('$aptName 실거주 후기 살아보니 입주', display: 4);
-        if (mounted) setState(() { _analysis = '🔍 하자 정보 검색 중...'; });
-        final defectResults = await NaverSearchService.searchResults('$aptName 하자 결로 누수 균열', display: 2);
-        if (mounted) setState(() { _analysis = '🔍 임장 후기 검색 중...'; });
-        final visitResults = await NaverSearchService.searchResults('$aptName 임장 후기 현장 방문 답사', display: 4);
-        _sources = [...reviewResults, ...defectResults, ...visitResults];
+      _updateStatus('🔍 실거주 후기 검색 중...');
+      final reviews = await NaverSearchService.searchResults(
+          '$aptName 실거주 후기 살아보니 입주', display: 4);
+      _updateStatus('🔍 하자 정보 검색 중...');
+      final defects = await NaverSearchService.searchResults(
+          '$aptName 하자 결로 누수 균열', display: 2);
+      _updateStatus('🔍 임장 후기 검색 중...');
+      final visits = await NaverSearchService.searchResults(
+          '$aptName 임장 후기 현장 방문 답사', display: 4);
 
-        // 블로그 본문 크롤링
-        if (mounted) setState(() { _analysis = '📄 블로그 본문 수집 중 (${_sources.length}건)...'; });
-        await NaverSearchService.fetchBodies(_sources, maxChars: 800);
+      final allResults = [...reviews, ...defects, ...visits];
 
-        for (final r in reviewResults) {
-          final content = r.body.isNotEmpty ? r.body : r.description;
-          searchResults += '### ${r.title}\n$content\n\n';
-        }
-        for (final r in defectResults) {
-          final content = r.body.isNotEmpty ? r.body : r.description;
-          searchResults += '### ${r.title}\n$content\n\n';
-        }
-        for (final r in visitResults) {
-          final content = r.body.isNotEmpty ? r.body : r.description;
-          searchResults += '### ${r.title}\n$content\n\n';
-        }
-      } catch (_) {}
-      if (mounted) setState(() { _analysis = '🤖 AI 분석 중...'; });
+      _updateStatus('📄 블로그 본문 수집 중 (${allResults.length}건)...');
+      await NaverSearchService.fetchBodies(allResults, maxChars: 800);
+
+      _sources = allResults;
+
+      final buf = StringBuffer();
+      for (var i = 0; i < allResults.length; i++) {
+        final r = allResults[i];
+        final content = r.body.isNotEmpty ? r.body : r.description;
+        buf.writeln('[${i + 1}] $content');
+      }
+      searchContext = buf.toString();
     }
 
-    final prompt = '''${info.toString()}
-${searchResults.isNotEmpty ? '## 참고자료 (블로그 후기)\n$searchResults' : ''}
-위 참고자료를 근거로 이 아파트 단지 자체를 평가해줘.
-블로그 내용을 요약하지 말고, 이 아파트에 실제 거주할 때의 장단점을 분석해줘.
+    _updateStatus('🤖 AI 분석 중...');
+
+    // GPT 프롬프트 (형식 지시를 앞에, 참고자료를 뒤에)
+    final prompt = '''다음 아파트를 실거주 관점에서 평가해줘.
+블로그 내용을 요약하지 말고, 아파트 자체의 장단점을 판단해줘.
+교통·학군·편의·단지·건물·시공하자 중에서 작성.
+반드시 아래 형식 그대로 출력.
 
 👍 긍정적 피드백
 1. (이 아파트의 장점 한 줄)
@@ -706,24 +687,27 @@ ${searchResults.isNotEmpty ? '## 참고자료 (블로그 후기)\n$searchResults
 4. (한 줄)
 5. (한 줄)
 
-교통·학군·편의·단지·건물·시공하자 중에서 작성. 반드시 위 형식을 지켜서 출력.''';
+## 물건
+$info
+
+${searchContext.isNotEmpty ? '## 참고자료\n$searchContext' : ''}''';
 
     try {
-      final service = await _getService();
-      await for (final partial in service.sendMessageStream(prompt, systemOverride: '한국 부동산 전문가이자 실구매자 관점의 전문 중개 상담사. 간결하게 답변.')) {
+      final service = OpenAIService();
+      await service.loadKnowledgeBase();
+      await for (final partial in service.sendMessageStream(prompt,
+          systemOverride: '한국 부동산 전문가이자 실구매자 관점의 전문 중개 상담사. 아파트 단지를 평가하는 역할. 간결하게 답변.')) {
         if (!mounted) return;
         setState(() { _analysis = partial; });
       }
-      setState(() { _loading = false; });
     } catch (e) {
-      if (mounted) setState(() { _analysis = '⚠️ 분석 실패: $e'; _loading = false; });
+      if (mounted) setState(() { _analysis = '⚠️ 분석 실패: $e'; });
     }
+    if (mounted) setState(() { _loading = false; });
   }
 
-  Future<OpenAIService> _getService() async {
-    final service = OpenAIService();
-    await service.loadKnowledgeBase();
-    return service;
+  void _updateStatus(String status) {
+    if (mounted) setState(() { _analysis = status; });
   }
 
   @override
@@ -747,10 +731,8 @@ ${searchResults.isNotEmpty ? '## 참고자료 (블로그 후기)\n$searchResults
                 padding: EdgeInsets.only(top: 12),
                 child: Row(
                   children: [
-                    SizedBox(
-                      width: 16, height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
+                    SizedBox(width: 16, height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2)),
                     SizedBox(width: 8),
                     Text('분석 중...', style: TextStyle(color: Colors.grey)),
                   ],
