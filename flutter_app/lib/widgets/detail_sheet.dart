@@ -689,13 +689,23 @@ class _PropertyAnalysisScreenState extends State<_PropertyAnalysisScreen> {
 
     final prompt = '''${info.toString()}
 ${searchResults.isNotEmpty ? '## 후기\n$searchResults' : ''}
-위 정보를 기반으로 거주 관점 분석. 교통·학군·편의·단지·건물·시공하자 포함. 한 줄씩 간결하게.
+위 정보를 기반으로 거주 관점 분석을 아래 형식 그대로 작성해줘.
 
 👍 긍정적 피드백
-1~5
+1. (한 줄)
+2. (한 줄)
+3. (한 줄)
+4. (한 줄)
+5. (한 줄)
 
 👎 부정적 피드백
-1~5''';
+1. (한 줄)
+2. (한 줄)
+3. (한 줄)
+4. (한 줄)
+5. (한 줄)
+
+교통·학군·편의·단지·건물·시공하자 중에서 작성. 반드시 위 형식을 지켜서 출력.''';
 
     try {
       final service = await _getService();
