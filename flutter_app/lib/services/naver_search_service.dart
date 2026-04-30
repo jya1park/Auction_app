@@ -50,7 +50,22 @@ class NaverSearchService {
         .toList();
   }
 
-  /// 블로그 본문 크롤링 (각 SearchResult의 body 채우기)
+  static const _adKeywords = [
+    '시공문의', '견적문의', '견적', '인테리어업체', '인테리어시공',
+    '협찬', '체험단', '광고', '업체추천', '무료상담',
+    '카톡문의', '전화문의', '시공사례', '포트폴리오',
+  ];
+
+  static bool _isAdContent(String text) {
+    final lower = text.toLowerCase();
+    int adCount = 0;
+    for (final kw in _adKeywords) {
+      if (lower.contains(kw)) adCount++;
+    }
+    return adCount >= 2;
+  }
+
+  /// 블로그 본문 크롤링 (각 SearchResult의 body 채우기, 광고 필터링)
   static Future<void> fetchBodies(List<SearchResult> results,
       {int maxChars = 1000}) async {
     await Future.wait(results.map((r) async {
@@ -66,12 +81,17 @@ class NaverSearchService {
         if (response.statusCode == 200) {
           final html = utf8.decode(response.bodyBytes, allowMalformed: true);
           final text = _extractBodyText(html);
-          r.body = text.length > maxChars
-              ? text.substring(0, maxChars)
-              : text;
+          if (_isAdContent(text)) {
+            r.body = '';
+          } else {
+            r.body = text.length > maxChars
+                ? text.substring(0, maxChars)
+                : text;
+          }
         }
       } catch (_) {}
     }));
+    results.removeWhere((r) => r.body.isEmpty && r.description.isEmpty);
   }
 
   /// HTML에서 본문 텍스트 추출

@@ -658,13 +658,13 @@ class _PropertyAnalysisScreenState extends State<_PropertyAnalysisScreen> {
     // 네이버 검색으로 실제 후기/하자/임장 정보 수집 + 본문 크롤링
     String searchResults = '';
     if (NaverSearchService.hasKeys && aptName.isNotEmpty) {
-      if (mounted) setState(() { _analysis = '🔍 네이버에서 후기 검색 중...'; });
+      if (mounted) setState(() { _analysis = '🔍 네이버에서 실거주 후기 검색 중...'; });
       try {
-        final reviewResults = await NaverSearchService.searchResults('$aptName 후기 거주 장단점', display: 4);
-        if (mounted) setState(() { _analysis = '🔍 하자/시공 정보 검색 중...'; });
-        final defectResults = await NaverSearchService.searchResults('$aptName 하자 시공 결로 누수', display: 2);
+        final reviewResults = await NaverSearchService.searchResults('$aptName 실거주 후기 살아보니 입주', display: 4);
+        if (mounted) setState(() { _analysis = '🔍 하자 정보 검색 중...'; });
+        final defectResults = await NaverSearchService.searchResults('$aptName 하자 결로 누수 균열', display: 2);
         if (mounted) setState(() { _analysis = '🔍 임장 후기 검색 중...'; });
-        final visitResults = await NaverSearchService.searchResults('$aptName 임장 후기 현장 방문', display: 4);
+        final visitResults = await NaverSearchService.searchResults('$aptName 임장 후기 현장 방문 답사', display: 4);
         _sources = [...reviewResults, ...defectResults, ...visitResults];
 
         // 블로그 본문 크롤링
