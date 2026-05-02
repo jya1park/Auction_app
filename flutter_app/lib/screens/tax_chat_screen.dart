@@ -242,11 +242,17 @@ class _TaxChatScreenState extends State<TaxChatScreen> {
             ),
           ),
           const SizedBox(width: 8),
-          IconButton.filled(
-            onPressed: _chat.isLoading
-                ? null
-                : () => _sendMessage(_controller.text),
-            icon: const Icon(Icons.send, size: 20),
+          _chat.isLoading
+              ? IconButton.filled(
+                  onPressed: () => _chat.stop(),
+                  icon: const Icon(Icons.stop, size: 20),
+                  style: IconButton.styleFrom(
+                    backgroundColor: Colors.red.shade400,
+                  ),
+                )
+              : IconButton.filled(
+                  onPressed: () => _sendMessage(_controller.text),
+                  icon: const Icon(Icons.send, size: 20),
           ),
         ],
       ),

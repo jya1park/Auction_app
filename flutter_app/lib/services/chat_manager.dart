@@ -61,12 +61,15 @@ class ChatManager {
     messages.add(ChatMessage(text: welcome, isUser: false));
   }
 
+  bool _cancelled = false;
+
   Future<void> sendMessage(String text) async {
     if (text.trim().isEmpty || isLoading) return;
 
     messages.add(ChatMessage(text: text.trim(), isUser: true));
     messages.add(ChatMessage(text: '', isUser: false));
     isLoading = true;
+    _cancelled = false;
     _notify();
 
     try {
@@ -75,8 +78,12 @@ class ChatManager {
         systemOverride: _systemOverride,
       );
       await for (final partial in stream) {
+        if (_cancelled) break;
         messages.last.text = partial;
         _notify();
+      }
+      if (_cancelled && messages.last.text.isNotEmpty) {
+        messages.last.text += '\n\n⏹ 중단됨';
       }
     } catch (e) {
       messages.last.text = '⚠️ 오류: $e';
@@ -85,6 +92,10 @@ class ChatManager {
       isLoading = false;
       _notify();
     }
+  }
+
+  void stop() {
+    _cancelled = true;
   }
 
   void clear() {
