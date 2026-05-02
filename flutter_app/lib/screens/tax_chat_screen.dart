@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
-import '../services/openai_service.dart';
+import '../services/chat_manager.dart';
 import '../widgets/chat_bubble.dart';
 
 class TaxChatScreen extends StatefulWidget {
@@ -13,13 +12,11 @@ class TaxChatScreen extends StatefulWidget {
 }
 
 class _TaxChatScreenState extends State<TaxChatScreen> {
-  final _aiService = OpenAIService();
   final _controller = TextEditingController();
   final _scrollController = ScrollController();
   final _focusNode = FocusNode();
 
-  final List<_ChatMessage> _messages = [];
-  bool _isLoading = false;
+  late final ChatManager _chat;
 
   bool get _isMainMode => widget.property == null;
 
@@ -33,26 +30,19 @@ class _TaxChatScreenState extends State<TaxChatScreen> {
   @override
   void initState() {
     super.initState();
-    if (widget.property != null) {
-      _aiService.setPropertyContext(widget.property!);
-    }
-    _addWelcomeMessage();
+    _chat = ChatManager.instance;
+    _chat.init(
+      property: widget.property,
+      systemOverride: _isMainMode ? _mainSystemPrompt : null,
+    );
+    _chat.addListener(_onUpdate);
   }
 
-  void _addWelcomeMessage() {
-    final hasProperty = widget.property != null;
-    String welcome;
-    if (hasProperty) {
-      final name = widget.property!['아파트명'] ?? '해당 물건';
-      welcome = '안녕하세요! 부동산 세금 전문 상담사입니다.\n\n'
-          '[$name]에 대해 궁금하신 세금 관련 질문을 해주세요.\n\n'
-          '예) "이 물건 취득세 얼마야?", "다주택자인데 세금은?"';
-    } else {
-      welcome = '안녕하세요! 부동산 정책·경매 전문 상담사입니다.\n\n'
-          '경매 절차, 권리분석, 부동산 정책, 세금 등 궁금한 점을 물어보세요.\n\n'
-          '예) "경매 입찰 절차 알려줘", "조정대상지역 규제는?"';
+  void _onUpdate() {
+    if (mounted) {
+      setState(() {});
+      _scrollToBottom();
     }
-    _messages.add(_ChatMessage(text: welcome, isUser: false));
   }
 
   void _scrollToBottom() {
@@ -68,35 +58,9 @@ class _TaxChatScreenState extends State<TaxChatScreen> {
   }
 
   Future<void> _sendMessage(String text) async {
-    if (text.trim().isEmpty || _isLoading) return;
-
+    if (text.trim().isEmpty || _chat.isLoading) return;
     _controller.clear();
-
-    setState(() {
-      _messages.add(_ChatMessage(text: text.trim(), isUser: true));
-      _messages.add(_ChatMessage(text: '', isUser: false));
-      _isLoading = true;
-    });
-    _scrollToBottom();
-
-    try {
-      final stream = _isMainMode
-          ? _aiService.sendMessageStream(text.trim(), systemOverride: _mainSystemPrompt)
-          : _aiService.sendMessageStream(text.trim());
-      await for (final partial in stream) {
-        if (!mounted) return;
-        setState(() {
-          _messages.last = _ChatMessage(text: partial, isUser: false);
-        });
-        _scrollToBottom();
-      }
-    } catch (e) {
-      setState(() {
-        _messages.last = _ChatMessage(text: '⚠️ 오류: $e', isUser: false);
-      });
-    }
-
-    setState(() => _isLoading = false);
+    _chat.sendMessage(text.trim());
   }
 
   void _clearChat() {
@@ -113,11 +77,7 @@ class _TaxChatScreenState extends State<TaxChatScreen> {
           TextButton(
             onPressed: () {
               Navigator.pop(ctx);
-              setState(() {
-                _messages.clear();
-                _aiService.clearHistory();
-                _addWelcomeMessage();
-              });
+              _chat.clear();
             },
             child: const Text('초기화'),
           ),
@@ -128,6 +88,7 @@ class _TaxChatScreenState extends State<TaxChatScreen> {
 
   @override
   void dispose() {
+    _chat.removeListener(_onUpdate);
     _controller.dispose();
     _scrollController.dispose();
     _focusNode.dispose();
@@ -140,7 +101,7 @@ class _TaxChatScreenState extends State<TaxChatScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.property != null ? '세금 상담' : '경매 상담'),
+        title: Text(_isMainMode ? '경매 상담' : '세금 상담'),
         actions: [
           IconButton(
             onPressed: _clearChat,
@@ -156,17 +117,17 @@ class _TaxChatScreenState extends State<TaxChatScreen> {
             child: ListView.builder(
               controller: _scrollController,
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-              itemCount: _messages.length + (_isLoading ? 1 : 0),
+              itemCount: _chat.messages.length + (_chat.isLoading ? 1 : 0),
               itemBuilder: (_, index) {
-                if (index == _messages.length && _isLoading) {
+                if (index == _chat.messages.length && _chat.isLoading) {
                   return const TypingIndicator();
                 }
-                final msg = _messages[index];
+                final msg = _chat.messages[index];
                 return ChatBubble(message: msg.text, isUser: msg.isUser);
               },
             ),
           ),
-          if (widget.property != null && _messages.length <= 1)
+          if (widget.property != null && _chat.messages.length <= 1)
             _buildQuickChips(colorScheme),
           _buildInputBar(colorScheme),
         ],
@@ -196,9 +157,7 @@ class _TaxChatScreenState extends State<TaxChatScreen> {
       decoration: BoxDecoration(
         color: colorScheme.primaryContainer.withOpacity(0.3),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: colorScheme.primary.withOpacity(0.3),
-        ),
+        border: Border.all(color: colorScheme.primary.withOpacity(0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -208,29 +167,18 @@ class _TaxChatScreenState extends State<TaxChatScreen> {
               Icon(Icons.gavel, size: 16, color: colorScheme.primary),
               const SizedBox(width: 6),
               Expanded(
-                child: Text(
-                  name,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: colorScheme.onSurface,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
+                child: Text(name,
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700,
+                        color: colorScheme.onSurface),
+                    overflow: TextOverflow.ellipsis),
               ),
             ],
           ),
           const SizedBox(height: 4),
           Text(
-            [
-              if (usage.isNotEmpty) usage,
-              if (area != null) '${area}㎡',
-              if (priceInfo.isNotEmpty) priceInfo,
-            ].join('  |  '),
-            style: TextStyle(
-              fontSize: 12,
-              color: colorScheme.onSurface.withOpacity(0.7),
-            ),
+            [if (usage.isNotEmpty) usage, if (area != null) '${area}㎡',
+              if (priceInfo.isNotEmpty) priceInfo].join('  |  '),
+            style: TextStyle(fontSize: 12, color: colorScheme.onSurface.withOpacity(0.7)),
           ),
         ],
       ),
@@ -251,7 +199,7 @@ class _TaxChatScreenState extends State<TaxChatScreen> {
         children: chips.map((chip) {
           return ActionChip(
             label: Text(chip.$1, style: const TextStyle(fontSize: 13)),
-            onPressed: _isLoading ? null : () => _sendMessage(chip.$2),
+            onPressed: _chat.isLoading ? null : () => _sendMessage(chip.$2),
             backgroundColor: colorScheme.secondaryContainer,
           );
         }).toList(),
@@ -261,17 +209,11 @@ class _TaxChatScreenState extends State<TaxChatScreen> {
 
   Widget _buildInputBar(ColorScheme colorScheme) {
     return Container(
-      padding: EdgeInsets.fromLTRB(
-        12,
-        8,
-        12,
-        8 + MediaQuery.of(context).padding.bottom,
-      ),
+      padding: EdgeInsets.fromLTRB(12, 8, 12,
+          8 + MediaQuery.of(context).padding.bottom),
       decoration: BoxDecoration(
         color: colorScheme.surface,
-        border: Border(
-          top: BorderSide(color: colorScheme.outlineVariant),
-        ),
+        border: Border(top: BorderSide(color: colorScheme.outlineVariant)),
       ),
       child: Row(
         children: [
@@ -280,32 +222,28 @@ class _TaxChatScreenState extends State<TaxChatScreen> {
               controller: _controller,
               focusNode: _focusNode,
               decoration: InputDecoration(
-                hintText: widget.property != null
-                    ? '세금 관련 질문을 입력하세요'
-                    : '경매·부동산 정책 관련 질문을 입력하세요',
-                hintStyle: TextStyle(
-                  fontSize: 14,
-                  color: colorScheme.onSurface.withOpacity(0.5),
-                ),
+                hintText: _isMainMode
+                    ? '경매·부동산 정책 관련 질문을 입력하세요'
+                    : '세금 관련 질문을 입력하세요',
+                hintStyle: TextStyle(fontSize: 14,
+                    color: colorScheme.onSurface.withOpacity(0.5)),
                 filled: true,
                 fillColor: colorScheme.surfaceContainerHighest.withOpacity(0.5),
                 contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 10,
-                ),
+                    horizontal: 16, vertical: 10),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(24),
                   borderSide: BorderSide.none,
                 ),
               ),
               textInputAction: TextInputAction.send,
-              onSubmitted: _isLoading ? null : _sendMessage,
+              onSubmitted: _chat.isLoading ? null : _sendMessage,
               maxLines: null,
             ),
           ),
           const SizedBox(width: 8),
           IconButton.filled(
-            onPressed: _isLoading
+            onPressed: _chat.isLoading
                 ? null
                 : () => _sendMessage(_controller.text),
             icon: const Icon(Icons.send, size: 20),
@@ -323,24 +261,14 @@ class _TaxChatScreenState extends State<TaxChatScreen> {
     } else {
       amount = num.tryParse(value.toString().replaceAll(',', '')) ?? 0;
     }
-    final formatter = NumberFormat('#,###');
     if (amount >= 100000000) {
       final eok = amount / 100000000;
       final man = ((amount % 100000000) / 10000).round();
-      if (man > 0) {
-        return '${eok.floor()}억 ${formatter.format(man)}만';
-      }
+      if (man > 0) return '${eok.floor()}억 ${man}만';
       return '${eok.floor()}억';
     } else if (amount >= 10000) {
-      return '${formatter.format((amount / 10000).round())}만';
+      return '${(amount / 10000).round()}만';
     }
-    return '${formatter.format(amount.round())}원';
+    return '${amount.round()}원';
   }
-}
-
-class _ChatMessage {
-  final String text;
-  final bool isUser;
-
-  _ChatMessage({required this.text, required this.isUser});
 }
