@@ -8,6 +8,8 @@ class ChatMessage {
   ChatMessage({required this.text, required this.isUser});
 }
 
+typedef VoidCallback = void Function();
+
 class ChatManager {
   ChatManager._();
   static final instance = ChatManager._();
@@ -18,13 +20,16 @@ class ChatManager {
   String? _systemOverride;
   Map<String, dynamic>? _property;
 
-  final _listeners = <VoidCallback>[];
+  final _listeners = <VoidCallback>{};
 
   void addListener(VoidCallback listener) => _listeners.add(listener);
   void removeListener(VoidCallback listener) => _listeners.remove(listener);
+
   void _notify() {
-    for (final l in _listeners) {
-      l();
+    for (final l in List.of(_listeners)) {
+      try {
+        l();
+      } catch (_) {}
     }
   }
 
@@ -75,18 +80,18 @@ class ChatManager {
       }
     } catch (e) {
       messages.last.text = '⚠️ 오류: $e';
+      _notify();
+    } finally {
+      isLoading = false;
+      _notify();
     }
-
-    isLoading = false;
-    _notify();
   }
 
   void clear() {
+    isLoading = false;
     messages.clear();
     _service.clearHistory();
     _addWelcome();
     _notify();
   }
 }
-
-typedef VoidCallback = void Function();
