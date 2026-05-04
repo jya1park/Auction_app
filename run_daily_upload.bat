@@ -1,4 +1,5 @@
 @echo off
+chcp 65001 >nul
 REM 매일 오전 8시 30분에 실거래가 자동 업데이트
 REM 사용법: 작업 스케줄러에 등록 (자세한 내용은 README_SCHEDULE.md)
 

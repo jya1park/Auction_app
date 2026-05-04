@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+import sys
+import io
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
 """
 courtauction_result.csv 파일을 Firestore에 업로드
 + 각 경매 물건의 주소로 실거래가 자동 매칭
