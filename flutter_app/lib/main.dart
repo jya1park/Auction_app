@@ -19,12 +19,43 @@ class AuctionApp extends StatelessWidget {
       title: 'Oh! Happy Day',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorSchemeSeed: const Color(0xFFF5C518),
+        colorSchemeSeed: const Color(0xFF1A73E8),
         useMaterial3: true,
         brightness: Brightness.light,
         appBarTheme: const AppBarTheme(
           centerTitle: true,
           elevation: 0,
+          scrolledUnderElevation: 1,
+        ),
+        cardTheme: CardThemeData(
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
+        chipTheme: const ChipThemeData(
+          showCheckmark: false,
+        ),
+        navigationBarTheme: NavigationBarThemeData(
+          elevation: 1,
+          indicatorShape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+        ),
+        floatingActionButtonTheme: FloatingActionButtonThemeData(
+          elevation: 2,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none,
+          ),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         ),
       ),
       home: const SplashScreen(),
@@ -71,30 +102,38 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: colorScheme.surface,
       body: Center(
         child: FadeTransition(
           opacity: _fadeIn,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Image.asset('icon.png', width: 180, height: 180),
-              const SizedBox(height: 24),
-              const Text(
-                '부동산 경매 조회',
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: colorScheme.primaryContainer,
+                  shape: BoxShape.circle,
+                ),
+                child: Image.asset('icon.png', width: 120, height: 120),
+              ),
+              const SizedBox(height: 28),
+              Text(
+                'Oh! Happy Day',
                 style: TextStyle(
-                  fontSize: 20,
+                  fontSize: 24,
                   fontWeight: FontWeight.w800,
-                  color: Color(0xFF333333),
+                  color: colorScheme.onSurface,
                 ),
               ),
               const SizedBox(height: 8),
               Text(
-                '경매 · 실거래가 · 지도',
+                '경매 · 실거래가 · AI 상담',
                 style: TextStyle(
                   fontSize: 14,
-                  color: Colors.grey.shade600,
+                  color: colorScheme.outline,
                 ),
               ),
             ],

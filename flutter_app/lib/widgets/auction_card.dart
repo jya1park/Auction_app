@@ -32,15 +32,21 @@ class AuctionCard extends StatelessWidget {
 
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Container(
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
           border: Border(
-            left: BorderSide(color: Colors.amber.shade700, width: 4),
+            left: BorderSide(
+              color: isOngoing
+                  ? colorScheme.primary
+                  : isSold
+                      ? Colors.green.shade600
+                      : Colors.orange.shade600,
+              width: 4,
+            ),
           ),
         ),
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -67,14 +73,14 @@ class AuctionCard extends StatelessWidget {
                 if (status.isNotEmpty)
                   Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 3),
+                        horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
                       color: isOngoing
-                          ? Colors.blue.shade100
+                          ? colorScheme.primaryContainer
                           : isSold
                               ? Colors.green.shade100
                               : Colors.orange.shade100,
-                      borderRadius: BorderRadius.circular(6),
+                      borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
                       status,
@@ -82,7 +88,7 @@ class AuctionCard extends StatelessWidget {
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
                         color: isOngoing
-                            ? Colors.blue.shade900
+                            ? colorScheme.onPrimaryContainer
                             : isSold
                                 ? Colors.green.shade900
                                 : Colors.orange.shade900,
@@ -110,23 +116,23 @@ class AuctionCard extends StatelessWidget {
 
             // 경매 금액 (감정가 vs 매각금액)
             Container(
-              padding: const EdgeInsets.all(10),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.amber.shade50,
-                borderRadius: BorderRadius.circular(8),
+                color: colorScheme.surfaceContainerHighest.withOpacity(0.5),
+                borderRadius: BorderRadius.circular(12),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.gavel, size: 14, color: Colors.amber.shade900),
+                      Icon(Icons.gavel, size: 14, color: colorScheme.primary),
                       const SizedBox(width: 4),
                       Text(isOngoing ? '경매 진행중' : '경매 정보',
                           style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w700,
-                              color: Colors.amber.shade900)),
+                              color: colorScheme.primary)),
                       const Spacer(),
                       if (discountRatio is num && discountRatio > 0)
                         Text('낙찰률 ${discountRatio.toStringAsFixed(1)}%',
@@ -185,10 +191,10 @@ class AuctionCard extends StatelessWidget {
             if (tradeGroups.isNotEmpty) ...[
               const SizedBox(height: 8),
               Container(
-                padding: const EdgeInsets.all(10),
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
-                  borderRadius: BorderRadius.circular(8),
+                  color: colorScheme.primaryContainer.withOpacity(0.3),
+                  borderRadius: BorderRadius.circular(12),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -196,13 +202,13 @@ class AuctionCard extends StatelessWidget {
                     Row(
                       children: [
                         Icon(Icons.timeline,
-                            size: 14, color: Colors.blue.shade900),
+                            size: 14, color: colorScheme.primary),
                         const SizedBox(width: 4),
                         Text('실거래가 (최근 6개월)',
                             style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w700,
-                                color: Colors.blue.shade900)),
+                                color: colorScheme.primary)),
                       ],
                     ),
                     const SizedBox(height: 6),
