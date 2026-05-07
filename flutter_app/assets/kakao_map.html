@@ -128,21 +128,20 @@ function renderMarkers() {
 
     var position = new kakao.maps.LatLng(item.lat, item.lng);
 
-    // 마커 이미지: 낙찰=별, 유찰=주황핀, 경매중=기본마커
+    // 마커 이미지: 필터칩 색상과 일치
     var marker;
     if (status === '낙찰') {
-      var imageSrc = 'https://t1.daumcdn.net/localimg/localimages/07/mapapidoc/markerStar.png';
-      var imageSize = new kakao.maps.Size(24, 35);
-      var markerImage = new kakao.maps.MarkerImage(imageSrc, imageSize);
+      var svg = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="24" height="35"><path d="M12 0C5.4 0 0 5.4 0 12c0 9 12 23 12 23s12-14 12-23C24 5.4 18.6 0 12 0z" fill="#16a34a"/><circle cx="12" cy="12" r="5" fill="white"/></svg>');
+      var markerImage = new kakao.maps.MarkerImage(svg, new kakao.maps.Size(24, 35));
       marker = new kakao.maps.Marker({ position: position, image: markerImage, map: map });
     } else if (status === '유찰') {
-      var imageSrc = 'https://t1.daumcdn.net/localimg/localimages/07/2018/pc/img/marker_spot.png';
-      var imageSize = new kakao.maps.Size(24, 35);
-      var markerImage = new kakao.maps.MarkerImage(imageSrc, imageSize);
+      var svg = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="24" height="35"><path d="M12 0C5.4 0 0 5.4 0 12c0 9 12 23 12 23s12-14 12-23C24 5.4 18.6 0 12 0z" fill="#ea580c"/><circle cx="12" cy="12" r="5" fill="white"/></svg>');
+      var markerImage = new kakao.maps.MarkerImage(svg, new kakao.maps.Size(24, 35));
       marker = new kakao.maps.Marker({ position: position, image: markerImage, map: map });
     } else {
-      // 경매중: 카카오 기본 마커 (빨간 핀)
-      marker = new kakao.maps.Marker({ position: position, map: map });
+      var svg = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="24" height="35"><path d="M12 0C5.4 0 0 5.4 0 12c0 9 12 23 12 23s12-14 12-23C24 5.4 18.6 0 12 0z" fill="#2563eb"/><circle cx="12" cy="12" r="5" fill="white"/></svg>');
+      var markerImage = new kakao.maps.MarkerImage(svg, new kakao.maps.Size(24, 35));
+      marker = new kakao.maps.Marker({ position: position, image: markerImage, map: map });
     }
 
     var content = buildInfoContent(item, true);
