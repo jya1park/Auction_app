@@ -1,12 +1,20 @@
 import 'package:flutter/material.dart';
 
-class AuctionCard extends StatelessWidget {
+class AuctionCard extends StatefulWidget {
   final Map<String, dynamic> data;
 
   const AuctionCard({super.key, required this.data});
 
   @override
+  State<AuctionCard> createState() => _AuctionCardState();
+}
+
+class _AuctionCardState extends State<AuctionCard> {
+  bool _expanded = false;
+
+  @override
   Widget build(BuildContext context) {
+    final data = widget.data;
     final colorScheme = Theme.of(context).colorScheme;
 
     final aptName = (data['아파트명'] ?? '').toString();
@@ -30,194 +38,244 @@ class AuctionCard extends StatelessWidget {
     final isOngoing = status == '경매중';
     final isSold = status == '낙찰';
 
+    final statusColor = isOngoing
+        ? colorScheme.primary
+        : isSold
+            ? Colors.green.shade600
+            : Colors.orange.shade600;
+
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          border: Border(
-            left: BorderSide(
-              color: isOngoing
-                  ? colorScheme.primary
-                  : isSold
-                      ? Colors.green.shade600
-                      : Colors.orange.shade600,
-              width: 4,
-            ),
+      child: InkWell(
+        onTap: () => setState(() => _expanded = !_expanded),
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border(left: BorderSide(color: statusColor, width: 4)),
           ),
-        ),
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 아파트명 + 결과 배지
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        aptName.isNotEmpty ? aptName : caseNo,
-                        style: const TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.w800),
-                      ),
-                      if (dongName.isNotEmpty)
-                        Text(dongName,
-                            style: TextStyle(
-                                fontSize: 12, color: colorScheme.outline)),
-                    ],
-                  ),
-                ),
-                if (status.isNotEmpty)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: isOngoing
-                          ? colorScheme.primaryContainer
-                          : isSold
-                              ? Colors.green.shade100
-                              : Colors.orange.shade100,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      status,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: isOngoing
-                            ? colorScheme.onPrimaryContainer
-                            : isSold
-                                ? Colors.green.shade900
-                                : Colors.orange.shade900,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 8),
-
-            // 소재지
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(Icons.location_on, size: 14, color: colorScheme.outline),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: Text(location,
-                      style: TextStyle(
-                          fontSize: 12, color: colorScheme.onSurfaceVariant)),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-
-            // 경매 금액 (감정가 vs 매각금액)
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: colorScheme.surfaceContainerHighest.withOpacity(0.5),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Column(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 간단 보기 (항상 표시)
+              Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      Icon(Icons.gavel, size: 14, color: colorScheme.primary),
-                      const SizedBox(width: 4),
-                      Text(isOngoing ? '경매 진행중' : '경매 정보',
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          aptName.isNotEmpty ? aptName : caseNo,
+                          style: const TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.w800),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          [
+                            if (dongName.isNotEmpty) dongName,
+                            itemType,
+                            if (area is num && area > 0) '${area}㎡',
+                          ].join(' · '),
                           style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              color: colorScheme.primary)),
-                      const Spacer(),
-                      if (discountRatio is num && discountRatio > 0)
-                        Text('낙찰률 ${discountRatio.toStringAsFixed(1)}%',
-                            style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                                color: colorScheme.primary)),
-                      if (isOngoing && failCount is num && failCount > 0)
-                        Text('유찰 $failCount회',
-                            style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.orange.shade800)),
-                    ],
+                              fontSize: 12, color: colorScheme.outline),
+                        ),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 6),
-                  Row(
+                  const SizedBox(width: 8),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      Expanded(
-                        child: _miniPrice('감정가', _formatWon(appraisalRaw),
-                            colorScheme.outline),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: isOngoing
+                              ? colorScheme.primaryContainer
+                              : isSold
+                                  ? Colors.green.shade100
+                                  : Colors.orange.shade100,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          status,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: isOngoing
+                                ? colorScheme.onPrimaryContainer
+                                : isSold
+                                    ? Colors.green.shade900
+                                    : Colors.orange.shade900,
+                          ),
+                        ),
                       ),
-                      Expanded(
-                        child: isOngoing
-                            ? _miniPrice(
-                                '최저입찰가${bidRate is num && bidRate > 0 ? " (${bidRate.toStringAsFixed(0)}%)" : ""}',
-                                minBidRaw is num && minBidRaw > 0
-                                    ? _formatWon(minBidRaw)
-                                    : '-',
-                                colorScheme.error,
-                              )
-                            : _miniPrice(
-                                isSold ? '매각금액' : '최저매각가',
-                                saleAmountRaw is num && saleAmountRaw > 0
-                                    ? _formatWon(saleAmountRaw)
-                                    : '-',
-                                colorScheme.error,
-                              ),
+                      const SizedBox(height: 6),
+                      Text(
+                        isOngoing
+                            ? (minBidRaw is num && minBidRaw > 0
+                                ? _formatWon(minBidRaw)
+                                : _formatWon(appraisalRaw))
+                            : (saleAmountRaw is num && saleAmountRaw > 0
+                                ? _formatWon(saleAmountRaw)
+                                : _formatWon(appraisalRaw)),
+                        style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            color: colorScheme.error),
                       ),
                     ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    [
-                      isOngoing ? '입찰기일: $saleDate' : '매각기일: $saleDate',
-                      itemType,
-                      if (area is num && area > 0) '${area}㎡',
-                    ].join(' · '),
-                    style: TextStyle(fontSize: 11, color: colorScheme.outline),
                   ),
                 ],
               ),
-            ),
 
-            // 실거래가 섹션 (있을 때만)
-            if (tradeGroups.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: colorScheme.primaryContainer.withOpacity(0.3),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.timeline,
-                            size: 14, color: colorScheme.primary),
-                        const SizedBox(width: 4),
-                        Text('실거래가 (최근 6개월)',
-                            style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                                color: colorScheme.primary)),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    ..._buildTradeGroups(tradeGroups, colorScheme),
-                  ],
+              // 펼치기 아이콘
+              Center(
+                child: Icon(
+                  _expanded ? Icons.expand_less : Icons.expand_more,
+                  size: 20,
+                  color: colorScheme.outline,
                 ),
               ),
+
+              // 자세히 보기 (펼쳤을 때만)
+              if (_expanded) ...[
+                const SizedBox(height: 8),
+
+                // 소재지
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.location_on,
+                        size: 14, color: colorScheme.outline),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(location,
+                          style: TextStyle(
+                              fontSize: 12,
+                              color: colorScheme.onSurfaceVariant)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+
+                // 경매 금액
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color:
+                        colorScheme.surfaceContainerHighest.withOpacity(0.5),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.gavel,
+                              size: 14, color: colorScheme.primary),
+                          const SizedBox(width: 4),
+                          Text(isOngoing ? '경매 진행중' : '경매 정보',
+                              style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: colorScheme.primary)),
+                          const Spacer(),
+                          if (discountRatio is num && discountRatio > 0)
+                            Text(
+                                '낙찰률 ${discountRatio.toStringAsFixed(1)}%',
+                                style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: colorScheme.primary)),
+                          if (isOngoing &&
+                              failCount is num &&
+                              failCount > 0)
+                            Text('유찰 $failCount회',
+                                style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.orange.shade800)),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _miniPrice('감정가',
+                                _formatWon(appraisalRaw), colorScheme.outline),
+                          ),
+                          Expanded(
+                            child: isOngoing
+                                ? _miniPrice(
+                                    '최저입찰가${bidRate is num && bidRate > 0 ? " (${bidRate.toStringAsFixed(0)}%)" : ""}',
+                                    minBidRaw is num && minBidRaw > 0
+                                        ? _formatWon(minBidRaw)
+                                        : '-',
+                                    colorScheme.error,
+                                  )
+                                : _miniPrice(
+                                    isSold ? '매각금액' : '최저매각가',
+                                    saleAmountRaw is num &&
+                                            saleAmountRaw > 0
+                                        ? _formatWon(saleAmountRaw)
+                                        : '-',
+                                    colorScheme.error,
+                                  ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        [
+                          isOngoing
+                              ? '입찰기일: $saleDate'
+                              : '매각기일: $saleDate',
+                          itemType,
+                          if (area is num && area > 0) '${area}㎡',
+                        ].join(' · '),
+                        style:
+                            TextStyle(fontSize: 11, color: colorScheme.outline),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // 실거래가
+                if (tradeGroups.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: colorScheme.primaryContainer.withOpacity(0.3),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.timeline,
+                                size: 14, color: colorScheme.primary),
+                            const SizedBox(width: 4),
+                            Text('실거래가 (최근 6개월)',
+                                style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: colorScheme.primary)),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        ..._buildTradeGroups(tradeGroups, colorScheme),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
@@ -271,7 +329,8 @@ class AuctionCard extends StatelessWidget {
                 child: Text('$y.$m',
                     style: TextStyle(
                         fontSize: 11,
-                        fontWeight: isLatest ? FontWeight.w700 : FontWeight.w400,
+                        fontWeight:
+                            isLatest ? FontWeight.w700 : FontWeight.w400,
                         color: cs.outline)),
               ),
               Expanded(
@@ -279,7 +338,7 @@ class AuctionCard extends StatelessWidget {
                     style: TextStyle(
                         fontSize: isLatest ? 14 : 13,
                         fontWeight: FontWeight.w700,
-                        color: isLatest ? Colors.blue.shade800 : cs.onSurface)),
+                        color: isLatest ? cs.primary : cs.onSurface)),
               ),
               if (floor.isNotEmpty)
                 Text('${floor}층',
@@ -292,7 +351,6 @@ class AuctionCard extends StatelessWidget {
     return widgets;
   }
 
-  // 원 단위 → 억/만원
   String _formatWon(dynamic raw) {
     if (raw == null) return '-';
     final n = raw is num
@@ -311,7 +369,6 @@ class AuctionCard extends StatelessWidget {
     return '$n원';
   }
 
-  // 만원 단위 → 억/만원 (실거래가 API는 만원 단위)
   String _formatWon10k(String raw) {
     final n = int.tryParse(raw.replaceAll(',', '').trim()) ?? 0;
     if (n == 0) return '-';
