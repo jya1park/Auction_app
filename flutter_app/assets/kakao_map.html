@@ -62,6 +62,14 @@ function initMap() {
   };
   map = new kakao.maps.Map(container, options);
 
+  // 지도 클릭 시 팝업 닫기
+  kakao.maps.event.addListener(map, 'click', function() {
+    if (currentInfoWindow) {
+      currentInfoWindow.close();
+      currentInfoWindow = null;
+    }
+  });
+
   // Flutter에 지도 준비 완료 통보
   if (window.FlutterChannel) {
     window.FlutterChannel.postMessage(JSON.stringify({__event: 'map_ready'}));
