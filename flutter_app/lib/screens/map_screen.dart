@@ -27,6 +27,8 @@ class _MapScreenState extends State<MapScreen> {
   bool _showSold = true;
   bool _showUnsold = true;
   String _lastUpdate = '';
+  List<Map<String, dynamic>> _todayNewSold = [];
+  bool _showNewBanner = true;
 
   // .env에서 읽을 수도 있지만, 빌드 시 교체됨
   static const _kakaoJsKey = String.fromEnvironment(
@@ -103,9 +105,17 @@ class _MapScreenState extends State<MapScreen> {
       }
       if (latest.length >= 10) latest = latest.substring(0, 10);
 
+      final today = DateTime.now().toIso8601String().substring(0, 10);
+      final newSold = items.where((i) =>
+          i['경매상태'] == '낙찰' &&
+          (i['_uploaded_at'] ?? '').toString().startsWith(today)
+      ).toList();
+
       setState(() {
         _items = items;
         _lastUpdate = latest;
+        _todayNewSold = newSold;
+        _showNewBanner = newSold.isNotEmpty;
         _isLoading = false;
       });
       _sendDataToMap();
@@ -239,8 +249,131 @@ class _MapScreenState extends State<MapScreen> {
               ),
             ),
           ),
+
+          // 당일 신규 낙찰 배너
+          if (_showNewBanner && _todayNewSold.isNotEmpty)
+            Positioned(
+              top: 72,
+              left: 12,
+              right: 12,
+              child: GestureDetector(
+                onTap: () {
+                  setState(() => _showNewBanner = false);
+                  showModalBottomSheet(
+                    context: context,
+                    isScrollControlled: true,
+                    shape: const RoundedRectangleBorder(
+                      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                    ),
+                    builder: (_) => _buildNewSoldSheet(),
+                  );
+                },
+                child: Card(
+                  elevation: 2,
+                  color: Theme.of(context).colorScheme.primaryContainer,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.notification_important, size: 18),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            '오늘 신규 낙찰 ${_todayNewSold.length}건',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: Theme.of(context).colorScheme.onPrimaryContainer,
+                            ),
+                          ),
+                        ),
+                        GestureDetector(
+                          onTap: () => setState(() => _showNewBanner = false),
+                          child: const Icon(Icons.close, size: 18),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );
+  }
+
+  Widget _buildNewSoldSheet() {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.4,
+      minChildSize: 0.2,
+      maxChildSize: 0.7,
+      expand: false,
+      builder: (_, scrollController) {
+        return Container(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40, height: 4,
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Text('오늘 신규 낙찰 ${_todayNewSold.length}건',
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 12),
+              Expanded(
+                child: ListView.builder(
+                  controller: scrollController,
+                  itemCount: _todayNewSold.length,
+                  itemBuilder: (_, i) {
+                    final item = _todayNewSold[i];
+                    final name = item['아파트명'] ?? item['사건번호'] ?? '-';
+                    final addr = item['주소'] ?? item['소재지'] ?? '';
+                    final amount = item['매각금액'];
+                    return ListTile(
+                      dense: true,
+                      leading: CircleAvatar(
+                        backgroundColor: Colors.green.shade100,
+                        radius: 16,
+                        child: Icon(Icons.gavel, size: 16, color: Colors.green.shade900),
+                      ),
+                      title: Text(name, style: const TextStyle(fontWeight: FontWeight.w700)),
+                      subtitle: Text(addr, maxLines: 1, overflow: TextOverflow.ellipsis),
+                      trailing: amount is num && amount > 0
+                          ? Text(_formatWonShort(amount),
+                              style: TextStyle(fontWeight: FontWeight.w700,
+                                  color: Theme.of(context).colorScheme.error))
+                          : null,
+                      onTap: () {
+                        Navigator.pop(context);
+                        _showDetail(item);
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  String _formatWonShort(num n) {
+    if (n >= 100000000) {
+      final eok = (n / 100000000).toStringAsFixed(1);
+      return '$eok억';
+    } else if (n >= 10000) {
+      return '${(n / 10000).round()}만';
+    }
+    return '$n';
   }
 }
