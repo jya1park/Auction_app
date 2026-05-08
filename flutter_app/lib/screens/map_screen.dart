@@ -108,7 +108,7 @@ class _MapScreenState extends State<MapScreen> {
       final today = DateTime.now().toIso8601String().substring(0, 10);
       final newSold = items.where((i) =>
           i['경매상태'] == '낙찰' &&
-          (i['_uploaded_at'] ?? '').toString().startsWith(today)
+          (i['매각기일'] ?? '').toString().startsWith(today)
       ).toList();
 
       setState(() {
