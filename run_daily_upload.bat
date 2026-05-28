@@ -10,6 +10,7 @@ set XLSX_FILE=%CSV_DIR%\courtauction_data.xlsx
 set RESULT_CSV=%CSV_DIR%\courtauction_result.csv
 set LIST_CSV=%CSV_DIR%\courtauction_list.csv
 set LOG_DIR=%PROJECT_DIR%\logs
+set VENV=%PROJECT_DIR%\venv\Scripts\python.exe
 
 REM ====== 로그 파일 (날짜별) ======
 for /f "tokens=1-3 delims=- " %%a in ("%date%") do (
@@ -25,13 +26,20 @@ echo ============================================ >> "%LOG_FILE%"
 
 cd /d "%PROJECT_DIR%"
 
+REM 가상환경 python 확인
+if not exist "%VENV%" (
+    echo [오류] 가상환경 없음: %VENV% >> "%LOG_FILE%"
+    echo [안내] py -3.12 -m venv venv 으로 생성하세요 >> "%LOG_FILE%"
+    exit /b 1
+)
+
 REM xlsx 파일 우선, 없으면 CSV 사용
 if exist "%XLSX_FILE%" (
     echo [정보] XLSX 파일 사용: %XLSX_FILE% >> "%LOG_FILE%"
-    python upload_csv.py "%XLSX_FILE%" --clear >> "%LOG_FILE%" 2>&1
+    "%VENV%" upload_csv.py "%XLSX_FILE%" --clear >> "%LOG_FILE%" 2>&1
 ) else if exist "%RESULT_CSV%" (
     echo [정보] CSV 파일 사용: %RESULT_CSV% >> "%LOG_FILE%"
-    python upload_csv.py "%RESULT_CSV%" --list-csv "%LIST_CSV%" --clear >> "%LOG_FILE%" 2>&1
+    "%VENV%" upload_csv.py "%RESULT_CSV%" --list-csv "%LIST_CSV%" --clear >> "%LOG_FILE%" 2>&1
 ) else (
     echo [오류] 데이터 파일 없음: %XLSX_FILE% >> "%LOG_FILE%"
     exit /b 1
